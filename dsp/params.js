@@ -2,6 +2,7 @@
 // the control moves. The UI, the Macros and presets all read this one table.
 
 import { LFO_SHAPES } from './lfo.js';
+import { FILTER_MODES } from './filter.js';
 
 export const TIMES = [['1/16', 0.25], ['1/8', 0.5], ['3/16', 0.75], ['1/4', 1], ['3/8', 1.5], ['1/2', 2], ['3/4', 3], ['1 Bar', 4]];
 // Phaser Rate when synced: one sweep every so many beats.
@@ -25,6 +26,17 @@ export const DEVICES = {
       { group: 'Wobble', id: 'lfo_slow', label: 'x0.01', kind: 'toggle', def: 0 },
       { group: 'Wobble', id: 'lfo_depth', short: 'Depth', label: 'LFO Depth', kind: 'lin', min: 0, max: 50, def: 0, unit: 'ms', digits: 1 },
       { group: 'Wobble', id: 'lfo_slew', short: 'Slew', label: 'LFO Slew', kind: 'lin', min: 0, max: 1, def: 0, pct: true },
+    ],
+  },
+  filter: {
+    name: 'Filter',
+    params: [
+      { id: 'mode', label: 'Mode', kind: 'values', values: FILTER_MODES, def: 0 },
+      { id: 'cutoff', label: 'Cutoff', kind: 'log', min: 30, max: 12000, def: 1500, unit: 'Hz', digits: 0 },
+      { id: 'resonance', label: 'Res', kind: 'lin', min: 0, max: 1, def: 0.5, pct: true },
+      { id: 'drive', label: 'Drive', kind: 'lin', min: 0, max: 1, def: 0.3, pct: true },
+      { id: 'env', label: 'Env', kind: 'lin', min: 0, max: 1, def: 0, pct: true },
+      { id: 'mix', label: 'Dry/Wet', kind: 'lin', min: 0, max: 1, def: 0.5, pct: true },
     ],
   },
   delay: {

@@ -5,7 +5,7 @@ import { rackState, MODES } from './rack.js';
 import { presetName } from './names.js';
 
 // Ranges Rand keeps to (as 0..1 control positions), so it rarely makes something unusable.
-const SAFE = { feedback: [0.1, 0.8], mix: [0.25, 0.7], decay: [0.3, 0.85], lfo_depth: [0, 0.3], drive: [0.1, 0.8] };
+const SAFE = { feedback: [0.1, 0.8], mix: [0.25, 0.7], decay: [0.3, 0.85], lfo_depth: [0, 0.3], drive: [0.1, 0.8], resonance: [0.1, 0.8], cutoff: [0.4, 1] };
 
 export function randomRack(rand = Math.random, taken = new Set(), tempo = 120) {
   const st = rackState();

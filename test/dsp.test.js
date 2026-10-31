@@ -4,6 +4,7 @@ import { Tape } from '../dsp/tape.js';
 import { Delay } from '../dsp/delay.js';
 import { Phaser } from '../dsp/phaser.js';
 import { Spring } from '../dsp/spring.js';
+import { Filter } from '../dsp/filter.js';
 import { defaults } from '../dsp/params.js';
 import { Rack, rackState, chainRoutes, toRack, MODULES, MODES } from '../dsp/rack.js';
 import { randomRack } from '../dsp/random.js';
@@ -201,4 +202,54 @@ test('a rack from before Delay gets one, with the old Tape echo settings', () =>
   assert.equal(d.sync, 0);
   assert.equal(st.main.mode, 2);
   assert.ok(!('feedback' in st.slots[0].params));
+});
+
+function runFilter(p, sig, n = SR) {
+  const L = Float32Array.from({ length: n }, (_, i) => sig(i));
+  const R = L.slice();
+  const f = new Filter(SR);
+  for (let o = 0; o < n; o += 64) f.process(L.subarray(o, o + 64), R.subarray(o, o + 64), 64, p);
+  return L.subarray(n / 2);
+}
+const sine = (hz, a = 0.5) => (i) => a * Math.sin(2 * Math.PI * hz * i / SR);
+
+test('filter: low-pass keeps lows and cuts highs, band-pass picks the Cutoff', () => {
+  const p = { ...defaults('filter'), mix: 1, cutoff: 1000 };
+  const low = peak(runFilter(p, sine(100)));
+  const high = peak(runFilter(p, sine(8000)));
+  assert.ok(low > 0.35 && low < 1, `low ${low}`);
+  assert.ok(high < low * 0.05, `high ${high}`);
+  const bp = { ...p, mode: 1 };
+  const at = peak(runFilter(bp, sine(1000)));
+  assert.ok(at > 4 * peak(runFilter(bp, sine(60))) && at > 4 * peak(runFilter(bp, sine(12000))));
+});
+
+test('filter screams at full Resonance, near Cutoff and bounded', () => {
+  for (const cutoff of [200, 1500, 8000]) {
+    const y = runFilter({ ...defaults('filter'), mix: 1, resonance: 1, cutoff }, (i) => (i < 10 ? 0.5 : 0));
+    assert.ok(finite(y) && peak(y) > 0.3 && peak(y) < 2, `peak ${peak(y)}`);
+    let up = 0;
+    for (let i = 1; i < y.length; i++) if (y[i - 1] < 0 && y[i] >= 0) up++;
+    const hz = up * 2;
+    assert.ok(hz > cutoff * 0.4 && hz < cutoff * 1.2, `oscillates at ${hz} Hz for ${cutoff}`);
+  }
+  // Below the top it rings out instead.
+  const quiet = runFilter({ ...defaults('filter'), mix: 1, resonance: 0.6 }, (i) => (i < 10 ? 0.5 : 0));
+  assert.ok(peak(quiet) < 1e-3);
+});
+
+test('a rack from before Filter gets one after Tape, switched off', () => {
+  const old = rackState();
+  old.slots = old.slots.filter((s) => s.type !== 'filter');
+  old.main.mode = 1;
+  const st = toRack(old);
+  assert.deepEqual(st.slots.map((s) => s.id), MODULES);
+  assert.equal(st.slots[1].on, false);
+  assert.equal(st.main.mode, 1);
+  const rack = new Rack(SR);
+  rack.setState(old);
+  const [L, R] = impulse(SR / 4);
+  const oL = new Float32Array(L.length);
+  rack.process(L, R, oL, new Float32Array(L.length), L.length);
+  assert.ok(finite(oL));
 });

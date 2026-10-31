@@ -343,7 +343,7 @@ function renderSlots() {
 
 // The routing grid: a row per source (Rack In, then each module's output), a column per
 // destination (each module's input, then Rack Out). Each dial is a send level.
-const NAMES = { in: 'Rack In', out: 'Rack Out', tape: 'Tape', delay: 'Delay', spring: 'Spring', phaser: 'Phaser' };
+const NAMES = { in: 'Rack In', out: 'Rack Out', tape: 'Tape', filter: 'Filter', delay: 'Delay', spring: 'Spring', phaser: 'Phaser' };
 
 function renderRouting() {
   const box = $('routing');
@@ -372,16 +372,16 @@ function drawFlow() {
   const on = (t) => state.slots.find((s) => s.id === t)?.on !== false;
   const parts = [];
   const arrow = (x1, y1, x2, y2) => parts.push(`<path class="wire" d="M${x1} ${y1} L${x2} ${y2}" marker-end="url(#arr)"/>`);
-  const node = (x, y, w, label, t) => {
-    parts.push(`<rect class="mod${t && !on(t) ? ' off' : ''}" x="${x}" y="${y - 11}" width="${w}" height="22" rx="2"/>`);
+  const node = (x, y, w, label, t, bh = 22) => {
+    parts.push(`<rect class="mod${t && !on(t) ? ' off' : ''}" x="${x}" y="${y - bh / 2}" width="${w}" height="${bh}" rx="2"/>`);
     parts.push(`<text x="${x + w / 2}" y="${y + 4}">${label}</text>`);
   };
   const end = (x, y, label) => parts.push(`<text class="end" x="${x}" y="${y + 4}">${label}</text>`);
   const fbOpacity = loop > 0 ? 0.35 + 0.65 * loop : 0;
   const cx = W / 2;
   if (m.parallel) {
-    const w = 50;
-    const xs = [4, 62, 120, 178];
+    const w = 42;
+    const xs = [3, 50, 99, 148, 195];
     const y = 92;
     end(cx, 14, 'In');
     end(cx, H - 12, 'Out');
@@ -390,23 +390,26 @@ function drawFlow() {
       parts.push(`<path class="wire" d="M${cx} 24 C ${cx} 50, ${mx} 46, ${mx} ${y - 15}" marker-end="url(#arr)"/>`);
       parts.push(`<path class="wire" d="M${mx} ${y + 11} C ${mx} ${y + 40}, ${cx} ${y + 36}, ${cx} ${H - 26}" marker-end="url(#arr)"/>`);
       node(xs[i], y, w, NAMES[t], t);
-      if (fbOpacity) parts.push(`<path class="fb" style="opacity:${fbOpacity}" d="M${xs[i] + w - 6} ${y - 11} C ${xs[i] + w - 6} ${y - 24}, ${xs[i] + w + 8} ${y - 24}, ${xs[i] + w + 8} ${y - 8} L ${xs[i] + w + 8} ${y - 2}" marker-end="url(#arrfb)"/>`);
+      // Feedback: a small loop over the box, from its right back into its left.
+      if (fbOpacity) parts.push(`<path class="fb" style="opacity:${fbOpacity}" d="M${xs[i] + w - 8} ${y - 11} C ${xs[i] + w - 8} ${y - 26}, ${xs[i] + 8} ${y - 26}, ${xs[i] + 8} ${y - 13}" marker-end="url(#arrfb)"/>`);
     });
   } else {
     const n = m.order.length;
     const w = 96;
     const x = cx - w / 2;
-    const top = 38;
-    const step = Math.min((H - 80) / (n - 1), 62);
+    // Five boxes are drawn a little shorter so the arrows between them still show.
+    const bh = n > 4 ? 16 : 22;
+    const top = n > 4 ? 36 : 38;
+    const step = Math.min((H - top - 42) / (n - 1), 62);
     const ys = m.order.map((_, i) => top + i * step);
     end(cx, 14, 'In');
     end(cx, H - 10, 'Out');
-    arrow(cx, 20, cx, ys[0] - 15);
+    arrow(cx, 20, cx, ys[0] - bh / 2 - 4);
     m.order.forEach((t, i) => {
-      node(x, ys[i], w, NAMES[t], t);
-      if (i) arrow(cx, ys[i - 1] + 11, cx, ys[i] - 15);
+      node(x, ys[i], w, NAMES[t], t, bh);
+      if (i) arrow(cx, ys[i - 1] + bh / 2, cx, ys[i] - bh / 2 - 4);
     });
-    arrow(cx, ys[n - 1] + 11, cx, H - 24);
+    arrow(cx, ys[n - 1] + bh / 2, cx, H - 24);
     if (fbOpacity) {
       const r = x + w;
       parts.push(`<path class="fb" style="opacity:${fbOpacity}" d="M${r} ${ys[n - 1]} C ${r + 44} ${ys[n - 1]}, ${r + 44} ${ys[0]}, ${r + 6} ${ys[0]}" marker-end="url(#arrfb)"/>`);
@@ -419,7 +422,7 @@ function drawFlow() {
       <marker id="arrfb" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#e8e8e8"/></marker>
     </defs>${parts.join('')}</svg>`;
 }
-const MODULES_ORDER = ['tape', 'delay', 'spring', 'phaser'];
+const MODULES_ORDER = ['tape', 'filter', 'delay', 'spring', 'phaser'];
 
 function renderMain() {
   const box = $('main');
