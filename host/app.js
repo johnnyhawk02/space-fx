@@ -348,7 +348,7 @@ const NAMES = { in: 'Rack In', out: 'Rack Out', tape: 'Tape', spring: 'Spring', 
 function renderRouting() {
   const box = $('routing');
   box.innerHTML = '';
-  const dials = el('div', 'mode-dials');
+  const dials = el('div', 'grow');
   for (const id of ['mode', 'loop']) {
     dials.append(control(MAIN_PARAMS[id], () => state.main[id] ?? 0, (v) => {
       state.main[id] = v;
@@ -356,19 +356,19 @@ function renderRouting() {
       drawFlow();
     }));
   }
-  box.append(el('div', 'flow'), dials);
+  box.append(dials);
   drawFlow();
 }
 
 // A diagram of the current Mode: boxes for the modules, arrows for the signal, and a loop
 // for Feedback. A module that's switched off is drawn dashed.
 function drawFlow() {
-  const box = document.querySelector('#routing .flow');
+  const box = document.querySelector('.routing-panel .flow');
   if (!box) return;
   const m = MODES[Math.round(state.main.mode ?? 0)] || MODES[0];
   const loop = state.main.loop ?? 0;
-  const W = 360;
-  const H = 114;
+  const W = 240;
+  const H = 180;
   const on = (t) => state.slots.find((s) => s.id === t)?.on !== false;
   const parts = [];
   const arrow = (x1, y1, x2, y2) => parts.push(`<path class="wire" d="M${x1} ${y1} L${x2} ${y2}" marker-end="url(#arr)"/>`);
@@ -378,37 +378,39 @@ function drawFlow() {
   };
   const end = (x, y, label) => parts.push(`<text class="end" x="${x}" y="${y + 4}">${label}</text>`);
   const fbOpacity = loop > 0 ? 0.35 + 0.65 * loop : 0;
+  const cx = W / 2;
   if (m.parallel) {
-    const ys = [26, 62, 98];
-    const x = 130;
-    const w = 80;
-    end(18, 62, 'In');
-    end(W - 18, 62, 'Out');
+    const w = 58;
+    const xs = [8, 84, 160];
+    const y = 92;
+    end(cx, 14, 'In');
+    end(cx, H - 12, 'Out');
     MODULES_ORDER.forEach((t, i) => {
-      parts.push(`<path class="wire" d="M34 62 C 80 62, 80 ${ys[i]}, ${x - 4} ${ys[i]}" marker-end="url(#arr)"/>`);
-      parts.push(`<path class="wire" d="M${x + w} ${ys[i]} C ${x + w + 50} ${ys[i]}, ${x + w + 50} 62, ${W - 36} 62" marker-end="url(#arr)"/>`);
-      node(x, ys[i], w, NAMES[t], t);
-      if (fbOpacity) parts.push(`<path class="fb" style="opacity:${fbOpacity}" d="M${x + w / 2 + 14} ${ys[i] - 11} C ${x + w / 2 + 14} ${ys[i] - 24}, ${x + w / 2 - 14} ${ys[i] - 24}, ${x + w / 2 - 14} ${ys[i] - 14}" marker-end="url(#arrfb)"/>`);
+      const mx = xs[i] + w / 2;
+      parts.push(`<path class="wire" d="M${cx} 24 C ${cx} 50, ${mx} 46, ${mx} ${y - 15}" marker-end="url(#arr)"/>`);
+      parts.push(`<path class="wire" d="M${mx} ${y + 11} C ${mx} ${y + 40}, ${cx} ${y + 36}, ${cx} ${H - 26}" marker-end="url(#arr)"/>`);
+      node(xs[i], y, w, NAMES[t], t);
+      if (fbOpacity) parts.push(`<path class="fb" style="opacity:${fbOpacity}" d="M${xs[i] + w - 6} ${y - 11} C ${xs[i] + w - 6} ${y - 24}, ${xs[i] + w + 8} ${y - 24}, ${xs[i] + w + 8} ${y - 8} L ${xs[i] + w + 8} ${y - 2}" marker-end="url(#arrfb)"/>`);
     });
   } else {
     const n = m.order.length;
-    const w = 70;
-    const gap = (W - 60 - n * w) / (n - 1 || 1);
-    const y = 74;
-    const xs = m.order.map((_, i) => 34 + i * (w + Math.min(gap, 30)) + (W - 68 - (n * w + (n - 1) * Math.min(gap, 30))) / 2);
-    end(14, y, 'In');
-    end(W - 14, y, 'Out');
-    arrow(26, y, xs[0] - 4, y);
+    const w = 96;
+    const x = cx - w / 2;
+    const top = 44;
+    const step = n === 3 ? 46 : 62;
+    const ys = m.order.map((_, i) => top + i * step + (n === 3 ? 0 : 8));
+    end(cx, 14, 'In');
+    end(cx, H - 10, 'Out');
+    arrow(cx, 20, cx, ys[0] - 15);
     m.order.forEach((t, i) => {
-      node(xs[i], y, w, NAMES[t], t);
-      if (i) arrow(xs[i - 1] + w, y, xs[i] - 4, y);
+      node(x, ys[i], w, NAMES[t], t);
+      if (i) arrow(cx, ys[i - 1] + 11, cx, ys[i] - 15);
     });
-    arrow(xs[n - 1] + w, y, W - 30, y);
+    arrow(cx, ys[n - 1] + 11, cx, H - 24);
     if (fbOpacity) {
-      const x1 = xs[n - 1] + w / 2;
-      const x0 = xs[0] + w / 2;
-      parts.push(`<path class="fb" style="opacity:${fbOpacity}" d="M${x1} ${y - 11} C ${x1} 22, ${x0} 22, ${x0} ${y - 15}" marker-end="url(#arrfb)"/>`);
-      parts.push(`<text class="fbl" style="opacity:${fbOpacity}" x="${(x0 + x1) / 2}" y="20">Feedback</text>`);
+      const r = x + w;
+      parts.push(`<path class="fb" style="opacity:${fbOpacity}" d="M${r} ${ys[n - 1]} C ${r + 44} ${ys[n - 1]}, ${r + 44} ${ys[0]}, ${r + 6} ${ys[0]}" marker-end="url(#arrfb)"/>`);
+      parts.push(`<text class="fbl" style="opacity:${fbOpacity}" transform="translate(${r + 42} ${(ys[0] + ys[n - 1]) / 2}) rotate(90)">Feedback</text>`);
     }
   }
   box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}">
