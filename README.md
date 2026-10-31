@@ -16,3 +16,36 @@ Layout:
     worklet/  the AudioWorklet processor that runs the rack
     host/     the browser UI
     tools/    Rust reference renderer and comparison scripts
+
+## Run it
+
+Live at https://johnnyhawk02.github.io/space-fx/ (published from main by
+`.github/workflows/pages.yml`).
+
+Locally:
+
+    npm run serve        # or any static server: python3 -m http.server
+    open http://localhost:3000
+
+Open (or drop) a WAV, press Play or Space. Drag Tape, Phaser or Spring from the Browser into a
+slot; drag a slot's title bar to reorder. Each slot's In menu picks its source; Add Sub Mixer
+blends up to 4 sources (Rack In, any slot's Out, other mixers) with Level, Pan, Low Cut, High
+Cut and Delay, and any slot's In can take a mixer. A source further down the chain arrives 64
+samples late through a soft clipper: that's feedback. Map, then a Macro, then any control maps
+it; Min and Max are set in the list below the rack. Presets save in the browser; Rand makes a
+random rack with a new name. Export Audio renders offline through the same code.
+
+## Tests
+
+    npm test                       # DSP and rack checks in Node
+    tools/compare.sh in.wav        # JS against Clip's Rust, a sanity check (needs cargo)
+
+The port doesn't have to match Clip exactly, but at the moment it nearly does: Phaser is
+sample-identical, Spring is about 110 dB down, Tape about 50 dB down (wow's random drift
+wanders slightly differently).
+
+## Differences from Clip
+
+- Dry/Wet starts at 50% on every device.
+- Spring rebuilds its tank when Tone changes, as Clip does, but only once Tone has been still
+  for 100 ms, so a Macro sweeping it doesn't keep emptying the tank.

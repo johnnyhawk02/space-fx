@@ -1,0 +1,9 @@
+{
+  "name": "space-fx",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "serve": "npx --yes serve ."
+  }
+}
