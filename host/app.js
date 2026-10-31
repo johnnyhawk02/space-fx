@@ -250,12 +250,12 @@ function control(spec, get, set, target) {
     };
     box.onmousedown = mapClick;
     box.onmouseenter = tip;
-    box.append(el('span', 'label', spec.label), c);
+    box.append(el('span', 'label', spec.short ?? spec.label), c);
     return box;
   }
 
   const d = el('div', `dial${found ? ' mapped' : ''}${target ? '' : ' macrodial'}`);
-  d.append(el('span', 'label', spec.label));
+  d.append(el('span', 'label', spec.short ?? spec.label));
   const NS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', '0 0 30 30');
@@ -367,6 +367,7 @@ function renderSlots() {
   for (const slot of state.slots) {
     if (!slot.type) continue;
     const s = el('div', 'slot');
+    s.dataset.type = slot.type;
     const head = el('div', 'slot-head');
     const act = el('button', `activator${slot.on ? ' on' : ''}`);
     act.title = 'Device Activator';
