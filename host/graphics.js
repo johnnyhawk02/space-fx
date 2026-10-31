@@ -90,22 +90,27 @@ function spring(g, w, h, p, lvl, t, tempo, st) {
   const cy = h / 2;
   const turns = Math.round(7 + (p.tone - 1500) / 800);
   const r = Math.min(h * 0.2, 30);
+  // Mounts, with a short straight lead from each into the coil, so the spring hangs from them.
+  const lead = 8;
   g.fillStyle = MID;
-  g.fillRect(x0 - 6, cy - r - 6, 3, r * 2 + 12);
-  g.fillRect(x0 + len + 3, cy - r - 6, 3, r * 2 + 12);
+  g.fillRect(x0 - lead - 3, cy - r - 6, 3, r * 2 + 12);
+  g.fillRect(x0 + len + lead, cy - r - 6, 3, r * 2 + 12);
   g.strokeStyle = INK;
   g.lineWidth = 1.1;
   g.beginPath();
-  const steps = turns * 16;
+  g.moveTo(x0 - lead, cy);
+  g.lineTo(x0, cy);
+  const steps = turns * 40;
   for (let i = 0; i <= steps; i++) {
     const u = i / steps;
     const a = u * turns * Math.PI * 2;
     const wob = st.shake * h * 0.18 * Math.sin(u * Math.PI) * Math.sin(t * 40 + u * (6 + p.chirp * 12));
-    const x = x0 + u * len + Math.cos(a) * Math.min(r * 0.35, (len / turns) * 0.4);
+    // Starts and ends on the axis, exactly where the leads meet it.
+    const x = x0 + u * len + (Math.cos(a) - 1) * Math.min(r * 0.35, (len / turns) * 0.4) * Math.sin(u * Math.PI);
     const y = cy + Math.sin(a) * r + wob;
-    if (i) g.lineTo(x, y);
-    else g.moveTo(x, y);
+    g.lineTo(x, y);
   }
+  g.lineTo(x0 + len + lead, cy);
   g.stroke();
 }
 
