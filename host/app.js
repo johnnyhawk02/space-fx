@@ -385,34 +385,56 @@ function renderMacros() {
 }
 
 let dragSlot = null;
+let dragFx = null;
+let armedFx = null;
+
+function placeEffect(i, fx) {
+  const slot = state.slots[i];
+  const keep = slot.input;
+  state.slots[i] = newSlot(slot.id, fx);
+  state.slots[i].input = keep;
+  dropMappings(slot.id);
+  armedFx = null;
+  for (const c of document.querySelectorAll('.chip')) c.classList.remove('on');
+  send();
+  renderAll();
+  info(`${DEVICES[fx].name} in slot ${i + 1}`);
+}
 
 function renderSlots() {
   const box = $('slots');
   box.innerHTML = '';
   state.slots.forEach((slot, i) => {
     const s = el('div', `slot${slot.type ? '' : ' empty'}`);
+    s.ondragenter = (e) => e.preventDefault();
     s.ondragover = (e) => {
       e.preventDefault();
+      e.dataTransfer.dropEffect = dragFx ? 'copy' : 'move';
       s.classList.add('over');
     };
-    s.ondragleave = () => s.classList.remove('over');
+    s.ondragleave = (e) => {
+      if (!s.contains(e.relatedTarget)) s.classList.remove('over');
+    };
     s.ondrop = (e) => {
       e.preventDefault();
+      e.stopPropagation();
       s.classList.remove('over');
-      const fx = e.dataTransfer.getData('text/fx');
-      if (fx) {
-        const keep = slot.input;
-        state.slots[i] = newSlot(slot.id, fx);
-        state.slots[i].input = keep;
-        dropMappings(slot.id);
-      } else if (dragSlot != null && dragSlot !== i) {
+      // Safari can drop custom data types, so the dragged effect is also kept here.
+      const fx = dragFx || e.dataTransfer.getData('text/plain');
+      if (DEVICES[fx]) placeEffect(i, fx);
+      else if (dragSlot != null && dragSlot !== i) {
         const [moved] = state.slots.splice(dragSlot, 1);
         state.slots.splice(i, 0, moved);
+        send();
+        renderAll();
       }
       dragSlot = null;
-      send();
-      renderAll();
+      dragFx = null;
     };
+    // No drag and drop (touch screens, or a browser that won't): click an effect, then a slot.
+    s.addEventListener('click', () => {
+      if (armedFx) placeEffect(i, armedFx);
+    });
     if (!slot.type) {
       s.append(el('span', null, `Slot ${i + 1}`), el('span', null, 'Drop an effect here'));
       box.append(s);
@@ -422,7 +444,9 @@ function renderSlots() {
     head.draggable = true;
     head.ondragstart = (e) => {
       dragSlot = i;
-      e.dataTransfer.setData('text/slot', String(i));
+      dragFx = null;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', `slot ${i + 1}`);
     };
     const act = el('button', `activator${slot.on ? ' on' : ''}`);
     act.title = 'Device Activator';
@@ -797,7 +821,26 @@ document.body.ondrop = (e) => {
   }
 };
 for (const chip of document.querySelectorAll('.chip')) {
-  chip.ondragstart = (e) => e.dataTransfer.setData('text/fx', chip.dataset.fx);
+  chip.ondragstart = (e) => {
+    dragFx = chip.dataset.fx;
+    dragSlot = null;
+    e.dataTransfer.effectAllowed = 'copy';
+    e.dataTransfer.setData('text/plain', chip.dataset.fx);
+  };
+  chip.ondragend = () => {
+    dragFx = null;
+  };
+  chip.onclick = () => {
+    armedFx = armedFx === chip.dataset.fx ? null : chip.dataset.fx;
+    for (const c of document.querySelectorAll('.chip')) c.classList.toggle('on', c.dataset.fx === armedFx);
+    info(armedFx ? `Click a slot to put ${DEVICES[armedFx].name} there` : '');
+  };
+  // Double-click: into the first empty slot.
+  chip.ondblclick = () => {
+    const i = state.slots.findIndex((s) => !s.type);
+    if (i >= 0) placeEffect(i, chip.dataset.fx);
+    else info('No empty slot: drag onto a slot to replace it');
+  };
 }
 $('play').onclick = play;
 // Stop leaves the tails ringing, as Live does; a second Stop clears them.
