@@ -32,6 +32,10 @@ jobs:
         run: |
           mkdir site
           cp -r index.html host dsp worklet audio site/
+          # Stamp every script and stylesheet path with this commit, so a browser never mixes
+          # a fresh page with stale cached files (that left the panel blank).
+          V=${GITHUB_SHA::8}
+          find site -name '*.js' -o -name 'index.html' | xargs sed -i -E "s#([A-Za-z0-9_./-]+\.(js|css))(['\"])#\1?v=$V\3#g"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
