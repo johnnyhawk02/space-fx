@@ -6,6 +6,7 @@ import { rackState, toRack, SOURCES, DESTS } from '../dsp/rack.js';
 import { presetName } from '../dsp/names.js';
 import { randomRack } from '../dsp/random.js';
 import { encodeWav } from './wav.js';
+import { startGraphics } from './graphics.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -379,18 +380,32 @@ function renderSlots() {
     };
     head.append(act, el('span', 'sname', DEVICES[slot.type].name));
     s.append(head);
-    const meter = el('div', 'meter');
-    meter.append(el('i'));
-    meter.dataset.slot = slot.id;
-    s.append(meter);
+    const viz = el('canvas', 'viz');
+    viz.dataset.slot = slot.id;
+    s.append(viz);
     const params = el('div', 'params');
+    const groups = new Map();
     for (const spec of DEVICES[slot.type].params) {
       if (spec.showIf && !spec.showIf(slot.params)) continue;
-      params.append(control(spec, () => slot.params[spec.id], (v) => {
+      // Settings in named groups sit together under a small heading.
+      let into = params;
+      if (spec.group) {
+        if (!groups.has(spec.group)) {
+          const grp = el('div', 'group');
+          grp.append(el('div', 'ghead', spec.group));
+          const row = el('div', 'grow');
+          grp.append(row);
+          params.append(grp);
+          groups.set(spec.group, row);
+        }
+        into = groups.get(spec.group);
+      }
+      into.append(control(spec, () => slot.params[spec.id], (v) => {
         slot.params[spec.id] = v;
         send();
       }, { target: 'slot', slot: slot.id, param: spec.id }));
     }
+    params.classList.toggle('grouped', groups.size > 0);
     s.append(params);
     box.append(s);
   }
@@ -516,12 +531,11 @@ function renderAll() {
   renderPresets();
 }
 
+let lastPeaks = null;
+startGraphics(() => ({ state, peaks: lastPeaks }));
+
 function showPeaks(peaks) {
-  for (const m of document.querySelectorAll('.meter')) {
-    const p = peaks.slots[m.dataset.slot] || 0;
-    const db = 20 * Math.log10(Math.max(p, 1e-6));
-    m.firstChild.style.width = `${Math.min(Math.max((db + 60) / 60, 0), 1) * 100}%`;
-  }
+  lastPeaks = peaks;
 }
 
 // ---- Presets -------------------------------------------------------------------------------
