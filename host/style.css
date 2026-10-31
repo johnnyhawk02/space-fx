@@ -183,3 +183,20 @@ body.patching, body.patching * { cursor: crosshair !important; }
 .routing-panel .flow svg { height: 114px; }
 .routing-panel .mode-dials { padding: 4px 0 0; }
 .routing-panel .ghead { margin-top: 2px; }
+
+/* ---- Every module like Tape: picture on the left, dials on the right, two columns of cards. */
+.rack > .body { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "tape spring" "phaser route"; }
+.rack > .body .slot { display: grid; grid-template-columns: 240px 1fr; grid-template-rows: auto auto 1fr; padding: 0; }
+.rack > .body .slot .slot-head { grid-column: 1; grid-row: 1; }
+.rack > .body .slot .viz { grid-column: 1; grid-row: 2; width: 220px; height: 180px; min-height: 0; margin: 4px 10px 10px; }
+.rack > .body .slot .params { grid-column: 2; grid-row: 1 / 4; align-self: center; padding: 10px 8px 10px 0; display: flex; flex-direction: column; flex-wrap: nowrap; gap: 8px; justify-content: center; }
+.rack > .body .slot .params:not(.grouped) { display: grid; grid-template-columns: repeat(3, 58px); justify-content: start; row-gap: 10px; column-gap: 2px; }
+.rack > .body .slot .group + .group { border-left: none; border-top: 1px solid #333; padding-top: 8px; }
+.rack > .body .slot .grow { flex-wrap: wrap; }
+.slot[data-type=tape] .params.grouped { flex-direction: column; }
+.slot[data-type=tape] .group + .group { border-left: none; }
+.routing-panel .flow { width: 220px; height: 180px; margin: 4px 10px 10px; background: #161616; }
+.routing-panel .flow svg { width: 220px; height: 180px; }
+.routing-panel #routing { padding: 0; }
+.routing-panel .ghead { border-top: none; padding: 0 0 0 4px; margin: 0; }
+.routing-panel #main { display: flex; justify-content: flex-start; gap: 2px; padding: 0; }

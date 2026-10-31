@@ -89,7 +89,7 @@ function spring(g, w, h, p, lvl, t, tempo, st) {
   const x0 = (w - len) / 2;
   const cy = h / 2;
   const turns = Math.round(7 + (p.tone - 1500) / 800);
-  const r = h * 0.22;
+  const r = Math.min(h * 0.2, 30);
   g.fillStyle = MID;
   g.fillRect(x0 - 6, cy - r - 6, 3, r * 2 + 12);
   g.fillRect(x0 + len + 3, cy - r - 6, 3, r * 2 + 12);
@@ -101,7 +101,7 @@ function spring(g, w, h, p, lvl, t, tempo, st) {
     const u = i / steps;
     const a = u * turns * Math.PI * 2;
     const wob = st.shake * h * 0.18 * Math.sin(u * Math.PI) * Math.sin(t * 40 + u * (6 + p.chirp * 12));
-    const x = x0 + u * len + Math.cos(a) * r * 0.35;
+    const x = x0 + u * len + Math.cos(a) * Math.min(r * 0.35, (len / turns) * 0.4);
     const y = cy + Math.sin(a) * r + wob;
     if (i) g.lineTo(x, y);
     else g.moveTo(x, y);
