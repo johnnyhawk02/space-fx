@@ -18,7 +18,6 @@ const el = (tag, cls, text) => {
 
 const PRESET_KEY = 'spacefx.presets';
 const MAIN_PARAMS = MAIN_SPECS;
-const MACRO_SPEC = { id: 'macro', label: 'Macro', kind: 'lin', min: 0, max: 1, def: 0, pct: true };
 
 let state = startState();
 let ctx = null;
@@ -26,8 +25,6 @@ let node = null;
 let buffer = null;
 let source = null;
 let startedAt = 0;
-let mapping = false;
-let selectedMacro = 0;
 
 function startState() {
   const st = rackState();
@@ -200,41 +197,10 @@ function info(text) {
   $('info').textContent = text;
 }
 
-const keyOf = (t) => JSON.stringify([t.target, t.slot ?? null, t.src ?? null, t.dst ?? null, t.param ?? null]);
-
-function findMapping(t) {
-  const k = keyOf(t);
-  for (let i = 0; i < state.macros.length; i++) {
-    const m = state.macros[i].maps.find((x) => keyOf(x) === k);
-    if (m) return { macro: state.macros[i], map: m, index: i };
-  }
-  return null;
-}
-
-function addMapping(t) {
-  const k = keyOf(t);
-  for (const m of state.macros) m.maps = m.maps.filter((x) => keyOf(x) !== k);
-  state.macros[selectedMacro].maps.push({ ...t, min: 0, max: 1 });
-  send();
-  renderAll();
-}
-
-// A control for one parameter. `target` describes it for Macro mapping (null for Macros).
-function control(spec, get, set, target) {
-  const found = target && findMapping(target);
-  const shown = () => (found ? fromNorm(spec, found.map.min + (found.map.max - found.map.min) * found.macro.value) : get());
-  const tip = () => {
-    const extra = found ? ` (mapped to ${found.macro.name})` : '';
-    const what = target?.target === 'route' ? `${NAMES[target.src]} to ${NAMES[target.dst]}` : spec.label;
-    info(`${what}: ${format(spec, shown())}${extra}`);
-  };
-  const mapClick = (e) => {
-    if (!mapping || !target) return false;
-    e.preventDefault();
-    e.stopPropagation();
-    addMapping(target);
-    return true;
-  };
+// A control for one parameter: a dial, or a checkbox for an on/off setting.
+function control(spec, get, set) {
+  const shown = get;
+  const tip = () => info(`${spec.label}: ${format(spec, get())}`);
 
   if (spec.kind === 'toggle') {
     // A checkbox, labelled like a dial so it sits in line with them.
@@ -242,19 +208,17 @@ function control(spec, get, set, target) {
     const c = el('input');
     c.type = 'checkbox';
     c.checked = !!shown();
-    c.disabled = !!found;
     c.onchange = () => {
       set(c.checked ? 1 : 0);
       tip();
       if (spec.rerender) renderSlots();
     };
-    box.onmousedown = mapClick;
     box.onmouseenter = tip;
     box.append(el('span', 'label', spec.short ?? spec.label), c);
     return box;
   }
 
-  const d = el('div', `dial${found ? ' mapped' : ''}${target ? '' : ' macrodial'}`);
+  const d = el('div', 'dial');
   d.append(el('span', 'label', spec.short ?? spec.label));
   const NS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(NS, 'svg');
@@ -298,8 +262,6 @@ function control(spec, get, set, target) {
   d.redraw = draw;
   d.onmouseenter = tip;
   d.onmousedown = (e) => {
-    if (mapClick(e)) return;
-    if (found) return;
     e.preventDefault();
     let y = e.clientY;
     let x = toNorm(spec, get());
@@ -318,7 +280,6 @@ function control(spec, get, set, target) {
     addEventListener('mouseup', up);
   };
   d.ondblclick = () => {
-    if (found || mapping) return;
     set(spec.def);
     draw();
     tip();
@@ -328,37 +289,6 @@ function control(spec, get, set, target) {
 
 // ---- Rendering the rack --------------------------------------------------------------------
 
-function renderMacros() {
-  const box = $('macros');
-  box.innerHTML = '';
-  state.macros.forEach((m, i) => {
-    const wrap = el('div', 'macro');
-    const name = el('input', 'mname');
-    name.value = m.name;
-    name.onchange = () => {
-      m.name = name.value || `Macro ${i + 1}`;
-      send();
-      renderMappings();
-    };
-    const dial = control({ ...MACRO_SPEC, label: '' }, () => m.value, (v) => {
-      m.value = v;
-      send();
-      renderSlots();
-      renderRouting();
-      renderMain();
-    }, null);
-    if (mapping && i === selectedMacro) dial.classList.add('selected');
-    dial.addEventListener('mousedown', () => {
-      if (mapping) {
-        selectedMacro = i;
-        renderMacros();
-        renderMappings();
-      }
-    }, true);
-    wrap.append(dial, name);
-    box.append(wrap);
-  });
-}
 
 // Each module: its Device Activator, level meter and dials. The routing grid joins them.
 function renderSlots() {
@@ -375,6 +305,7 @@ function renderSlots() {
       slot.on = !slot.on;
       act.classList.toggle('on', slot.on);
       send();
+      drawFlow();
     };
     head.append(act, el('span', 'sname', DEVICES[slot.type].name));
     s.append(head);
@@ -401,7 +332,7 @@ function renderSlots() {
       into.append(control(spec, () => slot.params[spec.id], (v) => {
         slot.params[spec.id] = v;
         send();
-      }, { target: 'slot', slot: slot.id, param: spec.id }));
+      }));
     }
     params.classList.toggle('grouped', groups.size > 0);
     s.append(params);
@@ -409,9 +340,6 @@ function renderSlots() {
   }
 }
 
-function dropMappings(slotId) {
-  for (const m of state.macros) m.maps = m.maps.filter((x) => !(x.target === 'slot' && x.slot === slotId));
-}
 
 // The routing grid: a row per source (Rack In, then each module's output), a column per
 // destination (each module's input, then Rack Out). Each dial is a send level.
@@ -426,25 +354,70 @@ function renderRouting() {
       state.main[id] = v;
       send();
       drawFlow();
-    }, { target: 'main', param: id }));
+    }));
   }
-  box.append(dials, el('div', 'flow'));
+  box.append(el('div', 'flow'), dials);
   drawFlow();
 }
 
-// A one-line picture of the current Mode: what feeds what, and the Feedback path.
+// A diagram of the current Mode: boxes for the modules, arrows for the signal, and a loop
+// for Feedback. A module that's switched off is drawn dashed.
 function drawFlow() {
   const box = document.querySelector('#routing .flow');
   if (!box) return;
   const m = MODES[Math.round(state.main.mode ?? 0)] || MODES[0];
-  const fb = (state.main.loop ?? 0) > 0;
+  const loop = state.main.loop ?? 0;
+  const W = 360;
+  const H = 114;
+  const on = (t) => state.slots.find((s) => s.id === t)?.on !== false;
+  const parts = [];
+  const arrow = (x1, y1, x2, y2) => parts.push(`<path class="wire" d="M${x1} ${y1} L${x2} ${y2}" marker-end="url(#arr)"/>`);
+  const node = (x, y, w, label, t) => {
+    parts.push(`<rect class="mod${t && !on(t) ? ' off' : ''}" x="${x}" y="${y - 11}" width="${w}" height="22" rx="2"/>`);
+    parts.push(`<text x="${x + w / 2}" y="${y + 4}">${label}</text>`);
+  };
+  const end = (x, y, label) => parts.push(`<text class="end" x="${x}" y="${y + 4}">${label}</text>`);
+  const fbOpacity = loop > 0 ? 0.35 + 0.65 * loop : 0;
   if (m.parallel) {
-    box.innerHTML = `<div class="par"><span>In</span><span class="fan">${['Tape', 'Spring', 'Phaser'].map((n) => `<b>${n}${fb ? ' ↺' : ''}</b>`).join('')}</span><span>Out</span></div>`;
+    const ys = [26, 62, 98];
+    const x = 130;
+    const w = 80;
+    end(18, 62, 'In');
+    end(W - 18, 62, 'Out');
+    MODULES_ORDER.forEach((t, i) => {
+      parts.push(`<path class="wire" d="M34 62 C 80 62, 80 ${ys[i]}, ${x - 4} ${ys[i]}" marker-end="url(#arr)"/>`);
+      parts.push(`<path class="wire" d="M${x + w} ${ys[i]} C ${x + w + 50} ${ys[i]}, ${x + w + 50} 62, ${W - 36} 62" marker-end="url(#arr)"/>`);
+      node(x, ys[i], w, NAMES[t], t);
+      if (fbOpacity) parts.push(`<path class="fb" style="opacity:${fbOpacity}" d="M${x + w / 2 + 14} ${ys[i] - 11} C ${x + w / 2 + 14} ${ys[i] - 24}, ${x + w / 2 - 14} ${ys[i] - 24}, ${x + w / 2 - 14} ${ys[i] - 14}" marker-end="url(#arrfb)"/>`);
+    });
   } else {
-    const names = m.order.map((t) => `<b>${NAMES[t]}</b>`).join('<i>→</i>');
-    box.innerHTML = `<div class="ser"><span>In</span><i>→</i>${names}<i>→</i><span>Out</span></div>${fb ? `<div class="back">↺ ${NAMES[m.order[m.order.length - 1]]} back into ${NAMES[m.order[0]]}</div>` : ''}`;
+    const n = m.order.length;
+    const w = 70;
+    const gap = (W - 60 - n * w) / (n - 1 || 1);
+    const y = 74;
+    const xs = m.order.map((_, i) => 34 + i * (w + Math.min(gap, 30)) + (W - 68 - (n * w + (n - 1) * Math.min(gap, 30))) / 2);
+    end(14, y, 'In');
+    end(W - 14, y, 'Out');
+    arrow(26, y, xs[0] - 4, y);
+    m.order.forEach((t, i) => {
+      node(xs[i], y, w, NAMES[t], t);
+      if (i) arrow(xs[i - 1] + w, y, xs[i] - 4, y);
+    });
+    arrow(xs[n - 1] + w, y, W - 30, y);
+    if (fbOpacity) {
+      const x1 = xs[n - 1] + w / 2;
+      const x0 = xs[0] + w / 2;
+      parts.push(`<path class="fb" style="opacity:${fbOpacity}" d="M${x1} ${y - 11} C ${x1} 22, ${x0} 22, ${x0} ${y - 15}" marker-end="url(#arrfb)"/>`);
+      parts.push(`<text class="fbl" style="opacity:${fbOpacity}" x="${(x0 + x1) / 2}" y="20">Feedback</text>`);
+    }
   }
+  box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}">
+    <defs>
+      <marker id="arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#9a9a9a"/></marker>
+      <marker id="arrfb" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#e8e8e8"/></marker>
+    </defs>${parts.join('')}</svg>`;
 }
+const MODULES_ORDER = ['tape', 'spring', 'phaser'];
 
 function renderMain() {
   const box = $('main');
@@ -452,78 +425,19 @@ function renderMain() {
   box.append(control(MAIN_PARAMS.dryWet, () => state.main.dryWet, (v) => {
     state.main.dryWet = v;
     send();
-  }, { target: 'main', param: 'dryWet' }));
+  }));
   box.append(control(MAIN_PARAMS.volume, () => state.main.volume, (v) => {
     state.main.volume = v;
     send();
-  }, null));
+  }));
 }
 
-function targetName(t) {
-  if (t.target === 'slot') {
-    const i = state.slots.findIndex((s) => s.id === t.slot);
-    const s = state.slots[i];
-    const spec = s?.type && DEVICES[s.type].params.find((p) => p.id === t.param);
-    return `${s?.type ? DEVICES[s.type].name : "Module"}: ${spec ? spec.label : t.param}`;
-  }
-  if (t.target === 'route') return `Send: ${NAMES[t.src]} to ${NAMES[t.dst]}`;
-  return `Main: ${MAIN_PARAMS[t.param]?.label ?? t.param}`;
-}
 
-function renderMappings() {
-  const box = $('mappings');
-  box.hidden = !mapping;
-  if (!mapping) return;
-  box.innerHTML = '';
-  const m = state.macros[selectedMacro];
-  box.append(el('div', 'title', `${m.name}: click any control to map it`));
-  if (!m.maps.length) {
-    box.append(el('div', 'dim', 'Nothing mapped yet.'));
-    return;
-  }
-  const t = el('table');
-  const hr = el('tr');
-  ['Path', 'Min', 'Max', ''].forEach((h) => hr.append(el('th', null, h)));
-  t.append(hr);
-  m.maps.forEach((map, k) => {
-    const tr = el('tr');
-    tr.append(el('td', null, targetName(map)));
-    for (const end of ['min', 'max']) {
-      const td = el('td');
-      const inp = el('input');
-      inp.type = 'number';
-      inp.min = 0;
-      inp.max = 100;
-      inp.value = Math.round(map[end] * 100);
-      inp.onchange = () => {
-        map[end] = Math.min(Math.max(Number(inp.value) / 100, 0), 1);
-        send();
-        renderSlots();
-        renderRouting();
-      };
-      td.append(inp, document.createTextNode(' %'));
-      tr.append(td);
-    }
-    const td = el('td');
-    const del = el('button', null, 'Delete');
-    del.onclick = () => {
-      m.maps.splice(k, 1);
-      send();
-      renderAll();
-    };
-    td.append(del);
-    tr.append(td);
-    t.append(tr);
-  });
-  box.append(t);
-}
 
 function renderAll() {
-  renderMacros();
   renderSlots();
   renderRouting();
   renderMain();
-  renderMappings();
   $('name').value = state.name || '';
   $('tempo').value = state.tempo;
   renderPresets();
@@ -563,7 +477,11 @@ function renderPresets() {
 
 function setState(st) {
   state = toRack(st);
-  if (selectedMacro >= state.macros.length) selectedMacro = 0;
+  // No Macros any more: drop any a saved preset still carries, so nothing moves unseen.
+  for (const m of state.macros || []) {
+    m.maps = [];
+    m.value = 0;
+  }
   send();
   renderAll();
 }
@@ -608,17 +526,6 @@ $('tempo').onchange = () => {
   send();
 };
 $('export').onclick = exportAudio;
-$('map').onclick = () => {
-  mapping = !mapping;
-  $('map').classList.toggle('on', mapping);
-  document.body.classList.toggle('mapping', mapping);
-  renderAll();
-};
-$('randMacros').onclick = () => {
-  for (const m of state.macros) m.value = Math.random();
-  send();
-  renderAll();
-};
 $('name').onchange = () => {
   state.name = $('name').value.trim() || presetName(new Set(Object.keys(loadPresets())));
   $('name').value = state.name;
