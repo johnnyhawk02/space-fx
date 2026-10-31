@@ -2,7 +2,7 @@
 // All DOM code lives here; the sound is made by dsp/ inside the AudioWorklet.
 
 import { DEVICES, MIXER_PARAMS, CHANNEL_PARAMS, fromNorm, toNorm, format } from '../dsp/params.js';
-import { emptyState, newSlot, newMixer, MIXER_IDS, MAX_MIXERS } from '../dsp/rack.js';
+import { patchbayState, toPatchbay, newMixer, MIXER_IDS, MAX_MIXERS } from '../dsp/rack.js';
 import { presetName } from '../dsp/names.js';
 import { randomRack } from '../dsp/random.js';
 import { encodeWav } from './wav.js';
@@ -32,10 +32,7 @@ let mapping = false;
 let selectedMacro = 0;
 
 function startState() {
-  const st = emptyState();
-  st.slots[0] = newSlot('s1', 'tape');
-  st.slots[1] = newSlot('s2', 'spring');
-  st.slots[2] = newSlot('s3', 'phaser');
+  const st = patchbayState();
   st.name = presetName(new Set(Object.keys(loadPresets())));
   return st;
 }
@@ -384,70 +381,14 @@ function renderMacros() {
   });
 }
 
-let dragSlot = null;
-let dragFx = null;
-let armedFx = null;
-
-function placeEffect(i, fx) {
-  const slot = state.slots[i];
-  const keep = slot.input;
-  state.slots[i] = newSlot(slot.id, fx);
-  state.slots[i].input = keep;
-  dropMappings(slot.id);
-  armedFx = null;
-  for (const c of document.querySelectorAll('.chip')) c.classList.remove('on');
-  send();
-  renderAll();
-  info(`${DEVICES[fx].name} in slot ${i + 1}`);
-}
-
+// Each module: its jacks, Device Activator, level meter and dials. Cables do all the joining.
 function renderSlots() {
   const box = $('slots');
   box.innerHTML = '';
-  state.slots.forEach((slot, i) => {
-    const s = el('div', `slot${slot.type ? '' : ' empty'}`);
-    s.ondragenter = (e) => e.preventDefault();
-    s.ondragover = (e) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = dragFx ? 'copy' : 'move';
-      s.classList.add('over');
-    };
-    s.ondragleave = (e) => {
-      if (!s.contains(e.relatedTarget)) s.classList.remove('over');
-    };
-    s.ondrop = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      s.classList.remove('over');
-      // Safari can drop custom data types, so the dragged effect is also kept here.
-      const fx = dragFx || e.dataTransfer.getData('text/plain');
-      if (DEVICES[fx]) placeEffect(i, fx);
-      else if (dragSlot != null && dragSlot !== i) {
-        const [moved] = state.slots.splice(dragSlot, 1);
-        state.slots.splice(i, 0, moved);
-        send();
-        renderAll();
-      }
-      dragSlot = null;
-      dragFx = null;
-    };
-    // No drag and drop (touch screens, or a browser that won't): click an effect, then a slot.
-    s.addEventListener('click', () => {
-      if (armedFx) placeEffect(i, armedFx);
-    });
-    if (!slot.type) {
-      s.append(el('span', null, `Slot ${i + 1}`), el('span', null, 'Drop an effect here'));
-      box.append(s);
-      return;
-    }
+  for (const slot of state.slots) {
+    if (!slot.type) continue;
+    const s = el('div', 'slot');
     const head = el('div', 'slot-head');
-    head.draggable = true;
-    head.ondragstart = (e) => {
-      dragSlot = i;
-      dragFx = null;
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', `slot ${i + 1}`);
-    };
     const act = el('button', `activator${slot.on ? ' on' : ''}`);
     act.title = 'Device Activator';
     act.onclick = () => {
@@ -455,21 +396,12 @@ function renderSlots() {
       act.classList.toggle('on', slot.on);
       send();
     };
-    const x = el('button', 'x', '×');
-    x.title = 'Remove';
-    x.onclick = () => {
-      state.slots[i] = newSlot(slot.id, null);
-      dropMappings(slot.id);
-      send();
-      renderAll();
-    };
-    head.append(jack('in', `slotin:${slot.id}`), act, el('span', 'sname', `${i + 1}  ${DEVICES[slot.type].name}`), x, jack('out', `slot:${slot.id}`));
+    head.append(jack('in', `slotin:${slot.id}`), act, el('span', 'sname', DEVICES[slot.type].name), jack('out', `slot:${slot.id}`));
     s.append(head);
     const meter = el('div', 'meter');
     meter.append(el('i'));
     meter.dataset.slot = slot.id;
     s.append(meter);
-
     const params = el('div', 'params');
     for (const spec of DEVICES[slot.type].params) {
       params.append(control(spec, () => slot.params[spec.id], (v) => {
@@ -479,7 +411,7 @@ function renderSlots() {
     }
     s.append(params);
     box.append(s);
-  });
+  }
   requestAnimationFrame(drawCables);
 }
 
@@ -624,8 +556,9 @@ function jackName(id) {
   if (id === 'in') return 'Rack In';
   if (id === 'rackout') return 'Rack Out';
   const slotNo = (sid) => state.slots.findIndex((s) => s.id === sid) + 1;
-  if (id.startsWith('slot:')) return `Slot ${slotNo(id.slice(5))} Out`;
-  if (id.startsWith('slotin:')) return `Slot ${slotNo(id.slice(7))} In`;
+  const modName = (sid) => DEVICES[state.slots[slotNo(sid) - 1]?.type]?.name ?? 'Module';
+  if (id.startsWith('slot:')) return `${modName(id.slice(5))} Out`;
+  if (id.startsWith('slotin:')) return `${modName(id.slice(7))} In`;
   if (id.startsWith('mix:')) return `Sub Mixer ${id.slice(4)} Out`;
   const [, mid, ch] = id.split(':');
   return `Sub Mixer ${mid} In ${Number(ch) + 1}`;
@@ -697,7 +630,7 @@ function targetName(t) {
     const i = state.slots.findIndex((s) => s.id === t.slot);
     const s = state.slots[i];
     const spec = s?.type && DEVICES[s.type].params.find((p) => p.id === t.param);
-    return `Slot ${i + 1} ${s?.type ? DEVICES[s.type].name : ''}: ${spec ? spec.label : t.param}`;
+    return `${s?.type ? DEVICES[s.type].name : "Module"}: ${spec ? spec.label : t.param}`;
   }
   if (t.target === 'mixer') {
     const spec = (t.channel != null ? CHANNEL_PARAMS : MIXER_PARAMS).find((p) => p.id === t.param);
@@ -800,7 +733,7 @@ function renderPresets() {
 }
 
 function setState(st) {
-  state = st;
+  state = toPatchbay(st);
   if (selectedMacro >= state.macros.length) selectedMacro = 0;
   send();
   renderAll();
@@ -820,28 +753,6 @@ document.body.ondrop = (e) => {
     loadFile(f);
   }
 };
-for (const chip of document.querySelectorAll('.chip')) {
-  chip.ondragstart = (e) => {
-    dragFx = chip.dataset.fx;
-    dragSlot = null;
-    e.dataTransfer.effectAllowed = 'copy';
-    e.dataTransfer.setData('text/plain', chip.dataset.fx);
-  };
-  chip.ondragend = () => {
-    dragFx = null;
-  };
-  chip.onclick = () => {
-    armedFx = armedFx === chip.dataset.fx ? null : chip.dataset.fx;
-    for (const c of document.querySelectorAll('.chip')) c.classList.toggle('on', c.dataset.fx === armedFx);
-    info(armedFx ? `Click a slot to put ${DEVICES[armedFx].name} there` : '');
-  };
-  // Double-click: into the first empty slot.
-  chip.ondblclick = () => {
-    const i = state.slots.findIndex((s) => !s.type);
-    if (i >= 0) placeEffect(i, chip.dataset.fx);
-    else info('No empty slot: drag onto a slot to replace it');
-  };
-}
 $('play').onclick = play;
 // Stop leaves the tails ringing, as Live does; a second Stop clears them.
 $('stop').onclick = () => {

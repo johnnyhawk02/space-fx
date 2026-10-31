@@ -35,7 +35,7 @@ input[type=number] { width: 64px; }
 .macros { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; padding: 6px 8px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .macro { display: flex; flex-direction: column; align-items: center; }
 .macro .mname { width: 100%; text-align: center; background: transparent; border: none; height: 16px; color: var(--dim); }
-.slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 8px; min-height: 220px; }
+.slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; padding: 14px 18px; }
 .slot { background: var(--device); border: 1px solid var(--line); display: flex; flex-direction: column; min-width: 0; }
 .slot.over { outline: 1px dashed var(--on); }
 .slot.empty { align-items: center; justify-content: center; color: var(--dim); background: transparent; border-style: dashed; }

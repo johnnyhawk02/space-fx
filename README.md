@@ -4,7 +4,7 @@ A multi-effects rack (Tape, Phaser, Spring) ported from the Rust DSP in
 [Clip](https://github.com/johnnyhawk02/clip), prototyped in the browser as an AudioWorklet and
 headed for VST3.
 
-- One rack-style device, 4 slots, each with an In and an Out
+- A patchbay: Tape, Spring and Phaser modules, each with an In and an Out, joined by cables
 - Sub Mixers blend several signals and feed them back into the chain
 - 8 Macros, each mappable to any number of parameters
 - Presets with generated alien and space names
@@ -27,11 +27,11 @@ Locally:
     npm run serve        # or any static server: python3 -m http.server
     open http://localhost:3000
 
-Open (or drop) a WAV, press Play or Space. Drag Tape, Phaser or Spring from the Browser into a
-slot; drag a slot's title bar to reorder. Patch with cables: drag from an Out jack (Rack In,
-a slot's Out, a Sub Mixer's Out) to an In jack (a slot's In, a mixer channel's In, Rack Out);
-drag a cable off an In to unplug it. Dotted cables are the default wiring. Add Sub Mixer
-blends up to 4 sources with Level, Pan, Low Cut, High Cut and Delay. A source further down the chain arrives 64
+Open (or drop) a WAV, press Play or Space. It's a patchbay: Tape, Spring and Phaser modules,
+each with its dials, joined by cables. Drag from an Out jack (Rack In, a module's Out, a Sub
+Mixer's Out) to an In jack (a module's In, a mixer channel's In, Rack Out); drag a cable off an
+In to unplug it. Modules run in the order the cables say. Add Sub Mixer blends up to 4 sources
+with Level, Pan, Low Cut, High Cut and Delay. A source further down the chain arrives 64
 samples late through a soft clipper: that's feedback. Map, then a Macro, then any control maps
 it; Min and Max are set in the list below the rack. Presets save in the browser; Rand makes a
 random rack with a new name. Export Audio renders offline through the same code.
