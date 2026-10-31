@@ -222,3 +222,29 @@ body.patching, body.patching * { cursor: crosshair !important; }
 
 .slot[data-type=delay] { grid-area: delay; }
 .slot[data-type=delay] .params:not(.grouped) { grid-template-columns: repeat(2, 52px) !important; }
+
+/* ---- One dial grid for every module: every dial sits in a cell of the same size, rows line up
+   across the cards, and a group heading lives in the gap above its row. A new module just
+   sets --cols. */
+.rack { --col: 56px; --row: 60px; --gap: 16px; }
+.rack > .body .slot { --cols: 3; }
+.rack > .body .slot[data-type=tape] { --cols: 6; }
+.rack > .body .slot[data-type=delay], .rack > .body .routing-panel { --cols: 2; }
+.rack > .body .slot[data-type=phaser] { --cols: 4; }
+.rack > .body .slot .params, .rack > .body .slot .params:not(.grouped),
+.slot[data-type=phaser] .params:not(.grouped), .slot[data-type=delay] .params:not(.grouped) {
+  display: grid !important; grid-template-columns: repeat(var(--cols), var(--col)) !important;
+  grid-auto-rows: var(--row); gap: var(--gap) 0; padding: var(--gap) 8px 8px; justify-content: start; align-content: start; }
+.rack > .body .slot .params.grouped { grid-template-columns: 1fr !important; grid-auto-rows: auto; gap: 0; padding-top: 0; }
+.rack .group { display: block; padding: 0; gap: 0; border: none; }
+.rack > .body .slot .group + .group, .rack .slot[data-type=tape] .group + .group { border-left: none; border-top: 1px solid #333; margin-top: 0; padding-top: 0; }
+.rack .ghead { height: var(--gap); line-height: var(--gap); padding: 0 0 0 4px; margin: 0; border: none; }
+.rack .group + .group .ghead { height: calc(var(--gap) - 1px); }
+.rack .grow, .rack #routing, .rack .mode-dials, .routing-panel #main {
+  display: grid; grid-template-columns: repeat(var(--cols), var(--col)); grid-auto-rows: var(--row); gap: 0; padding: 0; justify-content: start; }
+.rack .group + .group .grow, .rack .group + .group #main { margin-top: 0; }
+.rack #routing { display: block; }
+.rack .dial, .rack .check, .rack .mode-dials .dial { width: var(--col); height: var(--row); justify-content: flex-start; margin: 0; }
+.rack .dial .label, .rack .mode-dials .dial .label, .rack .mode-dials .dial .value { max-width: var(--col); }
+.rack .check { gap: 0; }
+.rack .check input { margin: 8px 0 0; }
