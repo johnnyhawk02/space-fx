@@ -10,93 +10,129 @@ function tapeTime(p, tempo) {
   return (p.sync ?? 1) ? p.beats * 60 / tempo : (p.time_ms ?? 375) / 1000;
 }
 
-// A reel: the wound tape (a filled pack of radius `pack`) under the flange and three spokes.
+// A reel seen from the front: the wound tape (a grey pack) shows through three windows in a
+// solid flange, round a hub. `angle` turns it.
 function reel(g, x, y, r, pack, angle) {
   g.fillStyle = '#3a3a3a';
   g.beginPath();
   g.arc(x, y, pack, 0, Math.PI * 2);
   g.fill();
-  g.strokeStyle = '#555';
-  g.lineWidth = 0.6;
-  for (let k = r * 0.3; k < pack - 1; k += 3) {
-    g.beginPath();
-    g.arc(x, y, k, 0, Math.PI * 2);
-    g.stroke();
-  }
-  g.strokeStyle = INK;
-  g.lineWidth = 1.25;
+  // Flange with three windows cut out (even-odd fill leaves them open).
   g.beginPath();
   g.arc(x, y, r, 0, Math.PI * 2);
-  g.stroke();
-  g.beginPath();
-  g.arc(x, y, r * 0.22, 0, Math.PI * 2);
-  g.stroke();
+  const half = (50 * Math.PI) / 360;
   for (let k = 0; k < 3; k++) {
     const a = angle + (k * Math.PI * 2) / 3;
-    g.moveTo(x + Math.cos(a) * r * 0.22, y + Math.sin(a) * r * 0.22);
-    g.lineTo(x + Math.cos(a) * r * 0.85, y + Math.sin(a) * r * 0.85);
+    g.moveTo(x + Math.cos(a - half) * r * 0.36, y + Math.sin(a - half) * r * 0.36);
+    g.arc(x, y, r * 0.84, a - half * 1.25, a + half * 1.25);
+    g.arc(x, y, r * 0.36, a + half, a - half, true);
+    g.closePath();
   }
+  g.fillStyle = '#161616';
+  g.fill('evenodd');
+  g.strokeStyle = INK;
+  g.lineWidth = 1.2;
+  g.stroke();
+  // Hub.
+  g.fillStyle = '#161616';
+  g.beginPath();
+  g.arc(x, y, r * 0.24, 0, Math.PI * 2);
+  g.fill();
+  g.stroke();
+  g.beginPath();
+  g.arc(x, y, r * 0.07, 0, Math.PI * 2);
   g.stroke();
 }
 
 function tape(g, w, h, p, lvl, t, tempo, st) {
-  // Two reels with tape wound on them. The tape leaves the top of the left pack, runs across
-  // the top over two guides and the heads, and winds onto the top of the right pack, so both
-  // reels turn clockwise, as on a reel-to-reel. It moves gently at tape Speed (with a little Wow)
-  // and slowly spools from left to right and back.
-  const r = Math.min(h * 0.3, w * 0.17);
-  const cy = h * 0.6;
-  const x1 = w / 2 - r - 26;
-  const x2 = w / 2 + r + 26;
+  // A simple reel-to-reel: the deck, two big reels side by side on top, the tape coming down off
+  // their outer edges round two guide rollers and under the head cover. Both reels turn the same
+  // way (anticlockwise), gently, at tape Speed with a little Wow, and the tape slowly spools
+  // from left to right and back.
+  const r = Math.min(h * 0.31, w * 0.16);
+  const cy = r + 3;
+  const x1 = w / 2 - r - 2;
+  const x2 = w / 2 + r + 2;
   const v = (p.speed / 15) * (1 + p.wow * 0.3 * Math.sin(t * 2.1));
   st.travel = (st.travel || 0) + v * 0.35;
   st.wound = (st.wound || 0) + v * 0.0004;
   const prog = 1 - Math.abs((st.wound % 2) - 1); // 0..1..0
-  const pL = r * (0.3 + 0.62 * (1 - prog));
-  const pR = r * (0.3 + 0.62 * prog);
-  // Each reel turns so its pack's edge keeps pace with the tape: smaller pack, faster turn.
-  st.aL = (st.aL || 0) + (v * 0.35) / pL;
-  st.aR = (st.aR || 0) + (v * 0.35) / pR;
-  reel(g, x1, cy, r, pL, st.aL);
-  reel(g, x2, cy, r, pR, st.aR);
+  const pL = r * (0.4 + 0.5 * (1 - prog));
+  const pR = r * (0.4 + 0.5 * prog);
+  st.aL = (st.aL || 0) - (v * 0.35) / pL;
+  st.aR = (st.aR || 0) - (v * 0.35) / pR;
 
-  // Tape path across the top.
-  const ty = cy - r - 12;
-  const g1 = x1 + r * 0.55;
-  const g2 = x2 - r * 0.55;
-  const gr = 3;
+  // The deck behind.
+  const top = cy + r * 0.35;
+  const dl = x1 - r * 0.55;
+  const dr = x2 + r * 0.55;
+  g.strokeStyle = MID;
+  g.lineWidth = 1;
+  g.strokeRect(Math.round(dl) + 0.5, Math.round(top) + 0.5, Math.round(dr - dl), Math.round(h - 4 - top));
+
+  // Guide rollers either side of the head cover, and the tape: down off each pack's outer edge,
+  // round its roller, and in under the cover.
+  const ry = cy + r + 12;
+  const rr = 6;
+  const gx1 = w / 2 - r * 1.15;
+  const gx2 = w / 2 + r * 1.15;
+  const tapePath = () => {
+    g.beginPath();
+    g.moveTo(x1 - pL, cy);
+    g.lineTo(gx1 - rr, ry);
+    g.arc(gx1, ry, rr, Math.PI, Math.PI / 2, true);
+    g.lineTo(gx2, ry + rr);
+    g.arc(gx2, ry, rr, Math.PI / 2, 0, true);
+    g.lineTo(x2 + pR, cy);
+  };
   g.strokeStyle = INK;
   g.lineWidth = 1.4;
-  g.beginPath();
-  g.moveTo(x1, cy - pL);
-  g.lineTo(g1, ty - gr);
-  g.lineTo(g2, ty - gr);
-  g.lineTo(x2, cy - pR);
+  tapePath();
   g.stroke();
-  // Marks on the tape, so you can see it run left to right.
   g.save();
   g.strokeStyle = '#161616';
   g.setLineDash([2, 9]);
   g.lineDashOffset = -st.travel;
-  g.beginPath();
-  g.moveTo(g1, ty - gr);
-  g.lineTo(g2, ty - gr);
+  tapePath();
   g.stroke();
   g.restore();
-  // Guides under the tape, then the heads: erase, record, play.
-  g.strokeStyle = MID;
-  g.lineWidth = 1;
-  for (const gx of [g1, g2]) {
+
+  reel(g, x1, cy, r, pL, st.aL);
+  reel(g, x2, cy, r, pR, st.aR);
+
+  // Rollers, then the head cover: a shield between them, with the capstan below.
+  g.strokeStyle = INK;
+  g.lineWidth = 1.2;
+  g.fillStyle = '#161616';
+  for (const gx of [gx1, gx2]) {
     g.beginPath();
-    g.arc(gx, ty, gr - 1, 0, Math.PI * 2);
+    g.arc(gx, ry, rr, 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+    g.beginPath();
+    g.arc(gx, ry, 1.5, 0, Math.PI * 2);
     g.stroke();
   }
-  const hx = (x1 + x2) / 2;
-  g.fillStyle = MID;
-  g.fillRect(hx - 20, ty - gr + 1, 8, 7);
-  g.fillRect(hx - 4, ty - gr + 1, 8, 7);
-  g.fillStyle = lvl > 0.02 ? INK : MID;
-  g.fillRect(hx + 12, ty - gr + 1, 8, 7);
+  const cw = r * 0.8;
+  const ct = ry - 8;
+  const cb = Math.min(ry + 18, h - 12);
+  g.beginPath();
+  g.moveTo(w / 2 - cw, ct);
+  g.lineTo(w / 2 + cw, ct);
+  g.lineTo(w / 2 + cw, ct + 9);
+  g.lineTo(w / 2 + 6, cb);
+  g.lineTo(w / 2 - 6, cb);
+  g.lineTo(w / 2 - cw, ct + 9);
+  g.closePath();
+  g.fill();
+  g.stroke();
+  // The play head's lamp: lit when there's signal.
+  g.fillStyle = lvl > 0.02 ? INK : FAINT;
+  g.fillRect(w / 2 - 8, ct + 4, 16, 3);
+  g.strokeStyle = MID;
+  g.beginPath();
+  g.arc(w / 2, Math.min(cb + 5, h - 7), 3, 0, Math.PI * 2);
+  g.stroke();
 }
 
 function delay(g, w, h, p, lvl, t, tempo) {
