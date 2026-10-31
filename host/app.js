@@ -2,7 +2,7 @@
 // All DOM code lives here; the sound is made by dsp/ inside the AudioWorklet.
 
 import { DEVICES, fromNorm, toNorm, format } from '../dsp/params.js';
-import { rackState, toRack, MODES, MAIN_SPECS } from '../dsp/rack.js';
+import { rackState, toRack, MODES, MAIN_SPECS, TAIL } from '../dsp/rack.js';
 import { presetName } from '../dsp/names.js';
 import { randomRack } from '../dsp/random.js';
 import { encodeWav } from './wav.js';
@@ -379,41 +379,51 @@ function drawFlow() {
   const end = (x, y, label) => parts.push(`<text class="end" x="${x}" y="${y + 4}">${label}</text>`);
   const fbOpacity = loop > 0 ? 0.35 + 0.65 * loop : 0;
   const cx = W / 2;
+  const loopers = MODULES_ORDER.filter((t) => t !== TAIL);
   if (m.parallel) {
-    const w = 42;
-    const xs = [3, 50, 99, 148, 195];
-    const y = 92;
+    // The four side by side, each with its own loop, all into the Spring, then Out.
+    const w = 50;
+    const xs = [4, 63, 127, 186];
+    const y = 74;
+    const sy = 136;
     end(cx, 14, 'In');
-    end(cx, H - 12, 'Out');
-    MODULES_ORDER.forEach((t, i) => {
+    end(cx, H - 10, 'Out');
+    loopers.forEach((t, i) => {
       const mx = xs[i] + w / 2;
-      parts.push(`<path class="wire" d="M${cx} 24 C ${cx} 50, ${mx} 46, ${mx} ${y - 15}" marker-end="url(#arr)"/>`);
-      parts.push(`<path class="wire" d="M${mx} ${y + 11} C ${mx} ${y + 40}, ${cx} ${y + 36}, ${cx} ${H - 26}" marker-end="url(#arr)"/>`);
+      parts.push(`<path class="wire" d="M${cx} 24 C ${cx} 40, ${mx} 38, ${mx} ${y - 15}" marker-end="url(#arr)"/>`);
+      parts.push(`<path class="wire" d="M${mx} ${y + 11} C ${mx} ${y + 34}, ${cx} ${y + 30}, ${cx} ${sy - 15}" marker-end="url(#arr)"/>`);
       node(xs[i], y, w, NAMES[t], t);
-      // Feedback: a small loop over the box, from its right back into its left.
       if (fbOpacity) parts.push(`<path class="fb" style="opacity:${fbOpacity}" d="M${xs[i] + w - 8} ${y - 11} C ${xs[i] + w - 8} ${y - 26}, ${xs[i] + 8} ${y - 26}, ${xs[i] + 8} ${y - 13}" marker-end="url(#arrfb)"/>`);
     });
+    node(cx - 48, sy, 96, NAMES[TAIL], TAIL, 18);
+    arrow(cx, sy + 9, cx, H - 24);
   } else {
-    const n = m.order.length;
+    const order = [...m.order, TAIL];
+    const n = order.length;
     const w = 96;
     const x = cx - w / 2;
     // Five boxes are drawn a little shorter so the arrows between them still show.
     const bh = n > 4 ? 16 : 22;
     const top = n > 4 ? 36 : 38;
     const step = Math.min((H - top - 42) / (n - 1), 62);
-    const ys = m.order.map((_, i) => top + i * step);
+    const ys = order.map((_, i) => top + i * step);
     end(cx, 14, 'In');
     end(cx, H - 10, 'Out');
     arrow(cx, 20, cx, ys[0] - bh / 2 - 4);
-    m.order.forEach((t, i) => {
+    order.forEach((t, i) => {
       node(x, ys[i], w, NAMES[t], t, bh);
       if (i) arrow(cx, ys[i - 1] + bh / 2, cx, ys[i] - bh / 2 - 4);
     });
     arrow(cx, ys[n - 1] + bh / 2, cx, H - 24);
+    // Feedback: from the last module before the Spring back to the first.
+    const l = n - 2;
     if (fbOpacity) {
       const r = x + w;
-      parts.push(`<path class="fb" style="opacity:${fbOpacity}" d="M${r} ${ys[n - 1]} C ${r + 44} ${ys[n - 1]}, ${r + 44} ${ys[0]}, ${r + 6} ${ys[0]}" marker-end="url(#arrfb)"/>`);
-      parts.push(`<text class="fbl" style="opacity:${fbOpacity}" transform="translate(${r + 42} ${(ys[0] + ys[n - 1]) / 2}) rotate(90)">Feedback</text>`);
+      const y1 = l > 0 ? ys[l] : ys[0] + 5;
+      const y0 = l > 0 ? ys[0] : ys[0] - 5;
+      const bulge = l > 0 ? 44 : 22;
+      parts.push(`<path class="fb" style="opacity:${fbOpacity}" d="M${r} ${y1} C ${r + bulge} ${y1}, ${r + bulge} ${y0}, ${r + 6} ${y0}" marker-end="url(#arrfb)"/>`);
+      if (l > 0) parts.push(`<text class="fbl" style="opacity:${fbOpacity}" transform="translate(${r + 42} ${(y0 + y1) / 2}) rotate(90)">Feedback</text>`);
     }
   }
   box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}">

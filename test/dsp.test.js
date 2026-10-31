@@ -6,7 +6,7 @@ import { Phaser } from '../dsp/phaser.js';
 import { Spring } from '../dsp/spring.js';
 import { Filter } from '../dsp/filter.js';
 import { defaults } from '../dsp/params.js';
-import { Rack, rackState, chainRoutes, toRack, MODULES, MODES } from '../dsp/rack.js';
+import { Rack, rackState, chainRoutes, toRack, MODULES, MODES, modeRoutes } from '../dsp/rack.js';
 import { randomRack } from '../dsp/random.js';
 import { presetName } from '../dsp/names.js';
 
@@ -252,4 +252,15 @@ test('a rack from before Filter gets one after Tape, switched off', () => {
   const oL = new Float32Array(L.length);
   rack.process(L, R, oL, new Float32Array(L.length), L.length);
   assert.ok(finite(oL));
+});
+
+test('Spring comes last in every Mode, outside the Feedback loop', () => {
+  for (let mode = 0; mode < MODES.length; mode++) {
+    const r = modeRoutes(mode, 1);
+    assert.equal(r.spring.out, 0, `mode ${mode}: Spring to Out`);
+    for (const t of MODULES) {
+      if (t !== 'spring') assert.ok(!(r[t].out > -60), `mode ${mode}: ${t} only reaches Out through Spring`);
+      assert.ok(!(r.spring[t] > -60), `mode ${mode}: nothing feeds back from Spring`);
+    }
+  }
 });
