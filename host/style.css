@@ -249,3 +249,5 @@ body.patching, body.patching * { cursor: crosshair !important; }
 .rack .check { gap: 0; }
 .rack .check input { margin: 8px 0 0; }
 .slot[data-type=filter] { grid-area: filter; }
+/* No group headings: the gap stays so rows still line up across cards. */
+.rack .ghead { visibility: hidden; }
