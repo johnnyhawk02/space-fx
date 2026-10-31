@@ -1,6 +1,8 @@
-// Tape: a tape echo on Chowdhury's physical model of an analog tape machine (DAFx-19), ported
-// from Clip's src/tape.rs. Jiles-Atherton hysteresis by RK4 at 2x, wow and flutter, the play
-// head's loss filter as an FIR, a 60 Hz high-pass in the loop and an LFO on the delay time.
+// Tape: Chowdhury's physical model of an analog tape machine (DAFx-19), ported from Clip's
+// src/tape.rs. Jiles-Atherton hysteresis by RK4 at 2x, wow and flutter, the play head's loss
+// filter as an FIR, a 60 Hz high-pass and an LFO on the tape's travel. The echo now lives in
+// its own Delay module: here the play head sits just a few ms after the record head, and the
+// dry signal is held back by the same amount, so Dry/Wet blends without combing.
 
 import { lcg, lcgValue } from './rng.js';
 import { Wobble, Lfo } from './lfo.js';
@@ -105,7 +107,7 @@ export function lossFir(rate, ips, spacingUm) {
 }
 
 export const TAPE_DEFAULTS = {
-  sync: 1, beats: 0.75, time_ms: 375, feedback: 0.5, drive: 0.5, bias: 0.9, wow: 0.3, speed: 15, spacing: 5, mix: 0.5,
+  drive: 0.5, bias: 0.9, wow: 0.3, speed: 15, spacing: 5, mix: 0.5,
   lfo_shape: 0, lfo_rate: 0.5, lfo_slow: 0, lfo_depth: 0, lfo_slew: 0,
 };
 
@@ -115,8 +117,9 @@ export class Tape {
     this.c = cFor(TAPE_DEFAULTS.bias);
     this.tape = [new Hysteresis(), new Hysteresis()];
     this.prevIn = [0, 0];
-    this.len = Math.round(rate * 5);
+    this.len = Math.round(rate * 0.25);
     this.buf = [new Float32Array(this.len), new Float32Array(this.len)];
+    this.dry = [new Float32Array(this.len), new Float32Array(this.len)];
     this.i = 0;
     this.fir = lossFir(rate, TAPE_DEFAULTS.speed, TAPE_DEFAULTS.spacing);
     this.firFor = [TAPE_DEFAULTS.speed, TAPE_DEFAULTS.spacing];
@@ -148,36 +151,27 @@ export class Tape {
     return acc / OVER / (MS / (3 * A) * norm) / g;
   }
 
-  // Process `n` frames of L and R in place. `beat` is a beat's length in frames.
-  process(L, R, n, p, beat) {
+  // Process `n` frames of L and R in place.
+  process(L, R, n, p) {
     if (p.speed !== this.firFor[0] || p.spacing !== this.firFor[1]) {
       this.fir = lossFir(this.rate, p.speed, p.spacing);
       this.firFor = [p.speed, p.spacing];
     }
     this.c = cFor(p.bias);
     const len = this.len;
-    // Sync off: Time in ms (presets from before Sync have no `sync`, and were synced).
-    const synced = p.sync ?? 1;
-    const frames = synced ? Math.max(p.beats, 0.0625) * beat : Math.min(Math.max(p.time_ms ?? 375, 10), 2000) * 0.001 * this.rate;
-    const target = frames - Math.floor(FIR_LEN / 2);
-    // The read head glides to a new Time instead of jumping, so the repeats bend in pitch
-    // like a real tape delay: longer Time pitches down on the way, shorter pitches up.
-    // About a quarter second to settle, and never faster than an octave down or a fifth up.
-    if (!(this.base >= 0)) this.base = target;
-    const glide = 1 - Math.exp(-1 / (0.25 * this.rate));
-    const fb = clamp(p.feedback, 0, 1.05);
     const mix = clamp(p.mix, 0, 1);
     const wow = clamp(p.wow, 0, 1);
     const aHp = Math.exp(-2 * Math.PI * 60 / this.rate);
     const speedK = Math.fround(Math.sqrt(Math.fround(clamp(Math.fround(p.speed / 7.5), 0.3, 4))));
     const lfoRate = clamp(p.lfo_rate, 0.01, 20) * (p.lfo_slow ? 0.01 : 1);
-    const depth = clamp(p.lfo_depth, 0, 200) * 0.001 * this.rate;
+    const depth = clamp(p.lfo_depth, 0, 50) * 0.001 * this.rate;
+    // Head gap: room for the widest wow and LFO swing, plus 2 ms. The dry side waits as long.
+    const base = Math.ceil(0.002 * this.rate + 0.0026 * wow * this.rate + depth);
+    const dryDelay = base + Math.floor(FIR_LEN / 2);
     const fir = this.fir;
     const echo = [0, 0];
     const io = [L, R];
     for (let f = 0; f < n; f++) {
-      this.base += clamp((target - this.base) * glide, -0.5, 0.5);
-      const base = this.base;
       const wobble = wow * this.rate * this.wobble.next(this.i % 2048 === 0, this.rand, speedK, this.rate);
       const lfo = this.lfo.next(p.lfo_shape | 0, lfoRate, p.lfo_slew, this.rate, this.rand);
       const d = clamp(base + wobble + lfo * depth, 2, len - 4);
@@ -203,8 +197,9 @@ export class Tape {
       this.hi = (this.hi + 1) % FIR_LEN;
       for (let c = 0; c < 2; c++) {
         const x = io[c][f];
-        this.buf[c][this.i] = this.record(c, x + echo[c] * fb, p.drive);
-        io[c][f] = x * (1 - mix) + echo[c] * mix;
+        this.dry[c][this.i] = x;
+        this.buf[c][this.i] = this.record(c, x, p.drive);
+        io[c][f] = this.dry[c][(this.i + len - dryDelay) % len] * (1 - mix) + echo[c] * mix;
       }
       this.i = (this.i + 1) % len;
     }

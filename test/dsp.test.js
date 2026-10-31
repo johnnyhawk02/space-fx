@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Tape } from '../dsp/tape.js';
+import { Delay } from '../dsp/delay.js';
 import { Phaser } from '../dsp/phaser.js';
 import { Spring } from '../dsp/spring.js';
 import { defaults } from '../dsp/params.js';
@@ -29,13 +30,35 @@ test('spring echoes and stays finite', () => {
   assert.ok(peak(L.subarray(SR)) > 1e-4, 'still echoing after a second');
 });
 
-test('tape echo bounded at full feedback', () => {
+test('delay echo bounded at full feedback', () => {
   const [L, R] = impulse(SR * 4);
-  const t = new Tape(SR);
-  const p = { ...defaults('tape'), feedback: 1.05, drive: 1, mix: 1 };
-  for (let o = 0; o < L.length; o += 128) t.process(L.subarray(o, o + 128), R.subarray(o, o + 128), 128, p, 22050);
+  const d = new Delay(SR);
+  const p = { ...defaults('delay'), feedback: 1.05, mix: 1 };
+  for (let o = 0; o < L.length; o += 128) d.process(L.subarray(o, o + 128), R.subarray(o, o + 128), 128, p, 22050);
   assert.ok(finite(L) && peak(L) < 8, `peak ${peak(L)}`);
   assert.ok(peak(L.subarray(16000, 18000)) > 0.01, 'an echo after 3/16 at 120');
+});
+
+test('tape colours without echoing, and Dry/Wet lines up', () => {
+  const n = SR;
+  const x = Float32Array.from({ length: n }, (_, i) => 0.5 * Math.sin(i * 0.02));
+  const run = (mix) => {
+    const L = x.slice();
+    const R = x.slice();
+    new Tape(SR).process(L, R, n, { ...defaults('tape'), wow: 0, mix });
+    return L;
+  };
+  const wet = run(1);
+  assert.ok(finite(wet) && peak(wet) > 0.05 && peak(wet) < 4);
+  const dry = run(0);
+  // Dry at 0% is the input, a few ms late; the late part matches the wet's average timing.
+  let best = Infinity;
+  for (let lag = 0; lag < 400; lag++) {
+    let e = 0;
+    for (let i = 2000; i < 6000; i++) e += Math.abs(dry[i] - x[i - lag]);
+    best = Math.min(best, e);
+  }
+  assert.ok(best < 1e-3, 'dry is the input, delayed');
 });
 
 test('phaser notch moves', () => {
@@ -53,7 +76,7 @@ test('rack: chain, bypass, feedback send, macro on a send', () => {
   const st = rackState();
   st.main.mode = null; // hand-made sends
   st.routes.phaser.tape = -6; // feedback from the end back to the start
-  st.macros[0].maps.push({ target: 'slot', slot: 'tape', param: 'feedback', min: 0.2, max: 1 });
+  st.macros[0].maps.push({ target: 'slot', slot: 'delay', param: 'feedback', min: 0.2, max: 1 });
   st.macros[1].maps.push({ target: 'route', src: 'spring', dst: 'out', min: 0, max: 1 });
   st.macros[0].value = 1;
   st.macros[1].value = 0.5;
@@ -69,7 +92,7 @@ test('rack: chain, bypass, feedback send, macro on a send', () => {
   const by = rackState();
   by.slots.forEach((s) => (s.on = false));
   by.main.mode = null;
-  by.routes = chainRoutes(['phaser', 'spring', 'tape']);
+  by.routes = chainRoutes(['phaser', 'spring', 'delay', 'tape']);
   const r2 = new Rack(SR);
   r2.setState(by);
   const x = new Float32Array(1000).map((_, i) => 0.3 * Math.sin(i / 7));
@@ -118,10 +141,10 @@ test('preset names', () => {
 });
 
 
-test('tape glides to a new Time instead of jumping', () => {
+test('delay glides to a new Time instead of jumping', () => {
   const rate = 48000;
-  const t = new Tape(rate);
-  const p = defaults('tape');
+  const t = new Delay(rate);
+  const p = defaults('delay');
   const L = new Float32Array(64);
   const R = new Float32Array(64);
   t.process(L, R, 64, p, rate / 2);
@@ -130,7 +153,7 @@ test('tape glides to a new Time instead of jumping', () => {
   t.process(L, R, 64, p, rate / 2);
   assert.ok(t.base > start && t.base - start <= 32 + 1e-9, 'moves at most half a frame per frame');
   for (let i = 0; i < 3000; i++) t.process(L, R, 64, p, rate / 2);
-  assert.ok(Math.abs(t.base - (1.5 * rate / 2 - 16)) < 1, 'settles on the new Time');
+  assert.ok(Math.abs(t.base - 1.5 * rate / 2) < 1, 'settles on the new Time');
 });
 
 test('every Mode passes sound, and Feedback keeps it going', () => {
@@ -140,7 +163,7 @@ test('every Mode passes sound, and Feedback keeps it going', () => {
       st.main.mode = mode;
       st.main.loop = loop;
       st.slots.forEach((s) => (s.params.mix = 1));
-      st.slots.find((s) => s.id === 'tape').params.feedback = 0;
+      st.slots.find((s) => s.id === 'delay').params.feedback = 0;
       const rack = new Rack(SR);
       rack.setState(st);
       const [L, R] = impulse(SR * 3);
@@ -163,4 +186,19 @@ test('phaser: Spread makes the sides differ, Feedback stays bounded', () => {
   let diff = 0;
   for (let i = 0; i < n; i++) diff = Math.max(diff, Math.abs(L[i] - R[i]));
   assert.ok(diff > 0.05, 'left and right sweep apart');
+});
+
+test('a rack from before Delay gets one, with the old Tape echo settings', () => {
+  const old = rackState();
+  old.slots = old.slots.filter((s) => s.type !== 'delay');
+  Object.assign(old.slots[0].params, { sync: 0, time_ms: 500, feedback: 0.7, mix: 0.3 });
+  old.main.mode = 2;
+  const st = toRack(old);
+  assert.deepEqual(st.slots.map((s) => s.id), MODULES);
+  const d = st.slots.find((s) => s.id === 'delay').params;
+  assert.equal(d.time_ms, 500);
+  assert.equal(d.feedback, 0.7);
+  assert.equal(d.sync, 0);
+  assert.equal(st.main.mode, 2);
+  assert.ok(!('feedback' in st.slots[0].params));
 });
