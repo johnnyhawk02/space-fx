@@ -45,7 +45,6 @@ export const DEVICES = {
       { id: 'sync', label: 'Sync', kind: 'toggle', def: 1, rerender: true },
       { id: 'beats', label: 'Time', kind: 'values', values: TIMES, def: 0.75, showIf: (p) => p.sync },
       { id: 'time_ms', label: 'Time', kind: 'log', min: 10, max: 2000, def: 375, unit: 'ms', digits: 0, showIf: (p) => !p.sync },
-      { id: 'feedback', label: 'Feedback', kind: 'lin', min: 0, max: 1.05, def: 0.5, pct: true },
       { id: 'mix', label: 'Dry/Wet', kind: 'lin', min: 0, max: 1, def: 0.5, pct: true },
     ],
   },

@@ -31,13 +31,14 @@ test('spring echoes and stays finite', () => {
   assert.ok(peak(L.subarray(SR)) > 1e-4, 'still echoing after a second');
 });
 
-test('delay echo bounded at full feedback', () => {
-  const [L, R] = impulse(SR * 4);
+test('delay gives one echo', () => {
+  const [L, R] = impulse(SR * 2);
   const d = new Delay(SR);
-  const p = { ...defaults('delay'), feedback: 1.05, mix: 1 };
+  const p = { ...defaults('delay'), mix: 1 };
   for (let o = 0; o < L.length; o += 128) d.process(L.subarray(o, o + 128), R.subarray(o, o + 128), 128, p, 22050);
-  assert.ok(finite(L) && peak(L) < 8, `peak ${peak(L)}`);
+  assert.ok(finite(L) && peak(L) < 2, `peak ${peak(L)}`);
   assert.ok(peak(L.subarray(16000, 18000)) > 0.01, 'an echo after 3/16 at 120');
+  assert.ok(peak(L.subarray(20000)) < 1e-6, 'and no more');
 });
 
 test('tape colours without echoing, and Dry/Wet lines up', () => {
@@ -77,7 +78,7 @@ test('rack: chain, bypass, feedback send, macro on a send', () => {
   const st = rackState();
   st.main.mode = null; // hand-made sends
   st.routes.phaser.tape = -6; // feedback from the end back to the start
-  st.macros[0].maps.push({ target: 'slot', slot: 'delay', param: 'feedback', min: 0.2, max: 1 });
+  st.macros[0].maps.push({ target: 'slot', slot: 'delay', param: 'mix', min: 0.2, max: 1 });
   st.macros[1].maps.push({ target: 'route', src: 'spring', dst: 'out', min: 0, max: 1 });
   st.macros[0].value = 1;
   st.macros[1].value = 0.5;
@@ -164,7 +165,6 @@ test('every Mode passes sound, and Feedback keeps it going', () => {
       st.main.mode = mode;
       st.main.loop = loop;
       st.slots.forEach((s) => (s.params.mix = 1));
-      st.slots.find((s) => s.id === 'delay').params.feedback = 0;
       const rack = new Rack(SR);
       rack.setState(st);
       const [L, R] = impulse(SR * 3);
@@ -198,7 +198,7 @@ test('a rack from before Delay gets one, with the old Tape echo settings', () =>
   assert.deepEqual(st.slots.map((s) => s.id), MODULES);
   const d = st.slots.find((s) => s.id === 'delay').params;
   assert.equal(d.time_ms, 500);
-  assert.equal(d.feedback, 0.7);
+  assert.ok(!('feedback' in d), 'Delay has no Feedback');
   assert.equal(d.sync, 0);
   assert.equal(st.main.mode, 2);
   assert.ok(!('feedback' in st.slots[0].params));

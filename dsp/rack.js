@@ -91,8 +91,8 @@ export function rackState() {
 // Make any saved state a grid rack, keeping settings, and turning older patches (slot inputs,
 // cables, Sub Mixers) into sends where they can be.
 // Racks from before Delay was split out of Tape: give them a Delay module carrying Tape's old
-// echo settings (Time, Sync, Feedback, and its Dry/Wet), in the same Mode.
-const DELAY_KEYS = ['sync', 'beats', 'time_ms', 'feedback'];
+// echo settings (Time, Sync, and its Dry/Wet), in the same Mode. Its old Feedback is dropped.
+const DELAY_KEYS = ['sync', 'beats', 'time_ms'];
 function addDelay(st) {
   if (!st.slots || st.slots.some((s) => s.type === 'delay')) return st;
   const tape = st.slots.find((s) => s.type === 'tape');
@@ -101,7 +101,7 @@ function addDelay(st) {
   for (const k of DELAY_KEYS) if (k in tape.params) params[k] = tape.params[k];
   if ('mix' in tape.params) params.mix = tape.params.mix;
   const tapeParams = { ...tape.params };
-  for (const k of DELAY_KEYS) delete tapeParams[k];
+  for (const k of [...DELAY_KEYS, 'feedback']) delete tapeParams[k];
   const slots = st.slots.map((s) => (s === tape ? { ...s, params: tapeParams } : s));
   slots.splice(slots.indexOf(slots.find((s) => s.type === 'tape')) + 1, 0, { id: 'delay', type: 'delay', on: tape.on !== false, params });
   const main = st.main ? { ...st.main, mode: st.main.mode ?? 0 } : st.main;

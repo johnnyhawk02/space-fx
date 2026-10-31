@@ -229,7 +229,7 @@ body.patching, body.patching * { cursor: crosshair !important; }
 .rack { --col: 56px; --row: 60px; --gap: 16px; }
 .rack > .body .slot { --cols: 3; }
 .rack > .body .slot[data-type=tape] { --cols: 6; }
-.rack > .body .slot[data-type=delay], .rack > .body .routing-panel { --cols: 2; }
+.rack > .body .routing-panel { --cols: 2; }
 .rack > .body .slot[data-type=phaser] { --cols: 4; }
 .rack > .body .slot .params, .rack > .body .slot .params:not(.grouped),
 .slot[data-type=phaser] .params:not(.grouped), .slot[data-type=delay] .params:not(.grouped) {
