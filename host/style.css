@@ -205,7 +205,7 @@ body.patching, body.patching * { cursor: crosshair !important; }
 /* ---- One row, left to right like a device chain: each card as wide as its dials, picture on
    top, dials below. No title bar, slightly narrower dials. */
 .rack { width: max-content; }
-.rack > .body { grid-template-columns: repeat(4, max-content); grid-template-areas: "tape spring phaser route"; gap: 8px; padding: 8px; }
+.rack > .body { grid-template-columns: repeat(5, max-content); grid-template-areas: "tape delay spring phaser route"; gap: 8px; padding: 8px; }
 .rack > .body .slot { display: flex; flex-direction: column; }
 .rack > .body .slot .viz, .routing-panel .flow, .routing-panel .flow svg { width: calc(100% - 16px); height: 120px; margin: 2px 8px 6px; }
 .routing-panel .flow svg { width: 100%; margin: 0; }
@@ -219,3 +219,6 @@ body.patching, body.patching * { cursor: crosshair !important; }
 /* Pictures take the card's width without widening it. */
 .rack > .body .slot .viz, .routing-panel .flow { width: 0; min-width: calc(100% - 16px); }
 .rack > .body .routing-panel { min-width: 200px; }
+
+.slot[data-type=delay] { grid-area: delay; }
+.slot[data-type=delay] .params:not(.grouped) { grid-template-columns: repeat(2, 52px) !important; }

@@ -343,7 +343,7 @@ function renderSlots() {
 
 // The routing grid: a row per source (Rack In, then each module's output), a column per
 // destination (each module's input, then Rack Out). Each dial is a send level.
-const NAMES = { in: 'Rack In', out: 'Rack Out', tape: 'Tape', spring: 'Spring', phaser: 'Phaser' };
+const NAMES = { in: 'Rack In', out: 'Rack Out', tape: 'Tape', delay: 'Delay', spring: 'Spring', phaser: 'Phaser' };
 
 function renderRouting() {
   const box = $('routing');
@@ -380,8 +380,8 @@ function drawFlow() {
   const fbOpacity = loop > 0 ? 0.35 + 0.65 * loop : 0;
   const cx = W / 2;
   if (m.parallel) {
-    const w = 58;
-    const xs = [8, 84, 160];
+    const w = 50;
+    const xs = [4, 62, 120, 178];
     const y = 92;
     end(cx, 14, 'In');
     end(cx, H - 12, 'Out');
@@ -396,9 +396,9 @@ function drawFlow() {
     const n = m.order.length;
     const w = 96;
     const x = cx - w / 2;
-    const top = 44;
-    const step = n === 3 ? 46 : 62;
-    const ys = m.order.map((_, i) => top + i * step + (n === 3 ? 0 : 8));
+    const top = 38;
+    const step = Math.min((H - 80) / (n - 1), 62);
+    const ys = m.order.map((_, i) => top + i * step);
     end(cx, 14, 'In');
     end(cx, H - 10, 'Out');
     arrow(cx, 20, cx, ys[0] - 15);
@@ -419,7 +419,7 @@ function drawFlow() {
       <marker id="arrfb" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#e8e8e8"/></marker>
     </defs>${parts.join('')}</svg>`;
 }
-const MODULES_ORDER = ['tape', 'spring', 'phaser'];
+const MODULES_ORDER = ['tape', 'delay', 'spring', 'phaser'];
 
 function renderMain() {
   const box = $('main');

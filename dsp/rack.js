@@ -9,26 +9,27 @@
 // 64 frames late, and it goes through a soft clipper.
 
 import { Tape } from './tape.js';
+import { Delay } from './delay.js';
 import { Phaser } from './phaser.js';
 import { Spring } from './spring.js';
 import { DEVICES, defaults, fromNorm, ROUTE_SPEC } from './params.js';
 
 export const BLOCK = 64;
 export const MACROS = 8;
-export const MODULES = ['tape', 'spring', 'phaser'];
+export const MODULES = ['tape', 'delay', 'spring', 'phaser'];
 export const SOURCES = ['in', ...MODULES];
 export const DESTS = [...MODULES, 'out'];
 export const OFF = -60; // dB: the bottom of a send dial, silent
 
-const EFFECTS = { tape: Tape, phaser: Phaser, spring: Spring };
+const EFFECTS = { tape: Tape, delay: Delay, phaser: Phaser, spring: Spring };
 
 // The routing Modes: a few clearly different shapes instead of a grid of sends.
 // Feedback sends whatever reaches Rack Out back into the start, through a soft clipper.
 export const MODES = [
-  { label: 'Series', order: ['tape', 'spring', 'phaser'] },     // echoes, then reverb, then sweep
-  { label: 'Reverse', order: ['phaser', 'spring', 'tape'] },    // the reverb's tail gets echoed
-  { label: 'Parallel', parallel: true },                         // all three side by side
-  { label: 'Echo + Verb', order: ['tape', 'spring'] },          // no Phaser
+  { label: 'Series', order: ['tape', 'delay', 'spring', 'phaser'] }, // tape, echoes, reverb, sweep
+  { label: 'Reverse', order: ['phaser', 'spring', 'delay', 'tape'] }, // the reverb's tail gets echoed
+  { label: 'Parallel', parallel: true },                               // all four side by side
+  { label: 'Echo + Verb', order: ['tape', 'delay', 'spring'] },       // no Phaser
 ];
 export const MAIN_SPECS = {
   mode: { id: 'mode', label: 'Mode', kind: 'values', values: MODES.map((m, i) => [m.label, i]), def: 0 },
@@ -66,7 +67,7 @@ export function modeRoutes(mode, loop = 0) {
     const r = emptyRoutes();
     for (const t of MODULES) {
       r.in[t] = 0;
-      r[t].out = -4.8;
+      r[t].out = -6;
       r[t][t] = fb;
     }
     return r;
@@ -88,7 +89,26 @@ export function rackState() {
 
 // Make any saved state a grid rack, keeping settings, and turning older patches (slot inputs,
 // cables, Sub Mixers) into sends where they can be.
+// Racks from before Delay was split out of Tape: give them a Delay module carrying Tape's old
+// echo settings (Time, Sync, Feedback, and its Dry/Wet), in the same Mode.
+const DELAY_KEYS = ['sync', 'beats', 'time_ms', 'feedback'];
+function addDelay(st) {
+  if (!st.slots || st.slots.some((s) => s.type === 'delay')) return st;
+  const tape = st.slots.find((s) => s.type === 'tape');
+  if (!tape) return st;
+  const params = defaults('delay');
+  for (const k of DELAY_KEYS) if (k in tape.params) params[k] = tape.params[k];
+  if ('mix' in tape.params) params.mix = tape.params.mix;
+  const tapeParams = { ...tape.params };
+  for (const k of DELAY_KEYS) delete tapeParams[k];
+  const slots = st.slots.map((s) => (s === tape ? { ...s, params: tapeParams } : s));
+  slots.splice(slots.indexOf(slots.find((s) => s.type === 'tape')) + 1, 0, { id: 'delay', type: 'delay', on: tape.on !== false, params });
+  const main = st.main ? { ...st.main, mode: st.main.mode ?? 0 } : st.main;
+  return { ...st, slots, main, routes: st.routes ? modeRoutes(main?.mode ?? 0, main?.loop ?? 0) : st.routes };
+}
+
 export function toRack(st) {
+  st = addDelay(st);
   if (st.routes && st.slots?.length === MODULES.length && st.slots.every((s, i) => s.id === MODULES[i])) {
     // Racks from before Modes start in Series.
     if (st.main && !('mode' in st.main)) st.main = { ...st.main, mode: 0, loop: 0 };

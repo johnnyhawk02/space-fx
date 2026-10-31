@@ -43,10 +43,10 @@ function tape(g, w, h, p, lvl, t, tempo, st) {
   // Two reels with tape wound on them, the tape running down round two guides, across the
   // heads and back up. It moves at tape Speed (with a little Wow), and slowly spools from the
   // left reel to the right one and back.
-  const r = Math.min(h * 0.3, w * 0.13);
+  const r = Math.min(h * 0.3, w * 0.2);
   const cy = h * 0.36;
-  const x1 = r + 8;
-  const x2 = x1 + r * 2 + 14;
+  const x1 = w / 2 - r - 10;
+  const x2 = w / 2 + r + 10;
   const v = (p.speed / 15) * (1 + p.wow * 0.3 * Math.sin(t * 2.1));
   st.angle = (st.angle || 0) + v * 0.05;
   st.travel = (st.travel || 0) + v * 0.8;
@@ -97,33 +97,43 @@ function tape(g, w, h, p, lvl, t, tempo, st) {
   g.fillRect(hx - 4, hy + gr + 1, 8, 7);
   g.fillStyle = lvl > 0.02 ? INK : MID;
   g.fillRect(hx + 14, hy + gr + 1, 8, 7);
+}
 
-  // Echoes on the right: one bar per repeat, spaced by Time, falling by Feedback.
-  const left = x2 + r + 18;
-  const right = w - 6;
-  const base = h - 8;
-  const span = 2.0; // seconds shown
+function delay(g, w, h, p, lvl, t, tempo) {
+  // One bar per repeat, spaced by Time, falling by Feedback, over the next two seconds; a
+  // playhead goes round once per repeat.
+  const left = 10;
+  const right = w - 10;
+  const base = h - 14;
+  const span = 2.0;
   const dt = tapeTime(p, tempo);
   g.strokeStyle = FAINT;
+  g.lineWidth = 1;
   g.beginPath();
   g.moveTo(left, base + 0.5);
   g.lineTo(right, base + 0.5);
   g.stroke();
+  for (let s = 0; s <= span; s += 0.5) {
+    const x = Math.round(left + (s / span) * (right - left)) + 0.5;
+    g.beginPath();
+    g.moveTo(x, base);
+    g.lineTo(x, base + 4);
+    g.stroke();
+  }
   let amp = 1;
   for (let k = 0; k * dt <= span && amp > 0.02; k++) {
     const x = left + ((k * dt) / span) * (right - left);
-    const bh = (base - 8) * Math.min(amp, 1);
+    const bh = (base - 12) * Math.min(amp, 1);
     g.fillStyle = k === 0 ? FAINT : INK;
-    g.fillRect(Math.round(x) - 1, base - bh, 2, bh);
+    g.fillRect(Math.round(x) - 1, base - bh, 3, bh);
     amp *= Math.min(p.feedback, 1.05);
     if (dt <= 0) break;
   }
-  // Playhead, going round once per repeat.
   if (dt > 0) {
     const x = left + (((t % dt) / span) * (right - left));
     g.strokeStyle = lvl > 0.02 ? MID : FAINT;
     g.beginPath();
-    g.moveTo(x + 0.5, 6);
+    g.moveTo(x + 0.5, 8);
     g.lineTo(x + 0.5, base);
     g.stroke();
   }
@@ -209,7 +219,7 @@ function phaser(g, w, h, p, lvl, t, tempo) {
   curve(ph, false);
 }
 
-const DRAW = { tape, spring, phaser };
+const DRAW = { tape, delay, spring, phaser };
 
 // Draw every module's picture each frame. `get()` gives the rack state and latest peaks.
 export function startGraphics(get) {
