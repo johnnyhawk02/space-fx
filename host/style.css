@@ -122,3 +122,16 @@ body.patching, body.patching * { cursor: crosshair !important; }
 .group + .group { border-top: 1px solid #333; padding-top: 8px; }
 .ghead { color: var(--dim); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; padding-left: 4px; }
 .grow { display: flex; flex-wrap: wrap; gap: 6px 2px; }
+
+/* Routing: a Mode dial, Feedback, and a picture of the path. */
+.routing-panel { width: 230px; }
+.mode-dials { display: flex; gap: 8px; padding: 4px 0 8px; }
+.mode-dials .dial { width: 80px; }
+.mode-dials .dial .label, .mode-dials .dial .value { max-width: 80px; }
+.flow { color: var(--dim); font-size: 10px; padding: 6px 0 4px; border-top: 1px solid var(--line); min-height: 44px; }
+.flow b { color: var(--text); font-weight: 600; }
+.flow i { font-style: normal; padding: 0 3px; }
+.flow .ser { display: flex; flex-wrap: wrap; align-items: center; row-gap: 2px; }
+.flow .back { margin-top: 4px; }
+.flow .par { display: flex; align-items: center; gap: 8px; }
+.flow .fan { display: flex; flex-direction: column; gap: 2px; border-left: 1px solid var(--dim); border-right: 1px solid var(--dim); padding: 0 8px; }
