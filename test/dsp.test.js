@@ -152,3 +152,15 @@ test('every Mode passes sound, and Feedback keeps it going', () => {
     }
   }
 });
+
+test('phaser: Spread makes the sides differ, Feedback stays bounded', () => {
+  const n = SR * 2;
+  const make = () => Float32Array.from({ length: n }, (_, i) => 0.5 * Math.sin(i * 0.05) + 0.3 * Math.sin(i * 0.31));
+  const L = make();
+  const R = make();
+  new Phaser(SR).process(L, R, n, { speed: 1, mix: 1, spread: 180, feedback: 0.9, depth: 1, center: 4500 });
+  assert.ok(finite(L) && finite(R) && peak(L) < 4 && peak(R) < 4);
+  let diff = 0;
+  for (let i = 0; i < n; i++) diff = Math.max(diff, Math.abs(L[i] - R[i]));
+  assert.ok(diff > 0.05, 'left and right sweep apart');
+});
