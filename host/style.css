@@ -109,3 +109,16 @@ body.patching, body.patching * { cursor: crosshair !important; }
   border: 1px solid var(--dim); background: #1a1a1a; border-radius: 2px; padding: 0; cursor: pointer; display: grid; place-content: center; }
 .check input:checked { background: var(--on); border-color: var(--on); }
 .check input:checked::after { content: ''; width: 7px; height: 4px; border: solid #111; border-width: 0 0 2px 2px; transform: translateY(-1px) rotate(-45deg); }
+
+/* Modules: plain panels, a picture on top, settings in groups. */
+.slots { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+.slot { background: #262626; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+.slot-head { background: transparent; border-bottom: none; padding: 8px 10px 4px; cursor: default; gap: 8px; }
+.slot-head .sname { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.viz { display: block; width: calc(100% - 20px); height: 78px; margin: 4px 10px 8px; background: #161616; border-radius: 2px; }
+.slot .params { padding: 4px 6px 10px; gap: 8px 4px; }
+.group { display: flex; flex-direction: column; gap: 6px; padding: 0 6px; }
+.slot .params.grouped { flex-direction: column; flex-wrap: nowrap; }
+.group + .group { border-top: 1px solid #333; padding-top: 8px; }
+.ghead { color: var(--dim); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; padding-left: 4px; }
+.grow { display: flex; flex-wrap: wrap; gap: 6px 2px; }
