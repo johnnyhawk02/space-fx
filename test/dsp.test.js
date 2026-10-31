@@ -104,3 +104,29 @@ test('preset names', () => {
     taken.add(n);
   }
 });
+
+test('patchbay runs modules in patch order, with no delay on forward cables', async () => {
+  const { patchbayState, toPatchbay } = await import('../dsp/rack.js');
+  const st = patchbayState();
+  st.slots.forEach((s) => (s.on = false));
+  // Patch backwards against the array order: in -> phaser -> spring -> tape -> out.
+  st.slots.find((s) => s.id === 'phaser').input = 'in';
+  st.slots.find((s) => s.id === 'spring').input = 'slot:phaser';
+  st.slots.find((s) => s.id === 'tape').input = 'slot:spring';
+  st.out = 'slot:tape';
+  const rack = new Rack(SR);
+  rack.setState(st);
+  const x = new Float32Array(512).map((_, i) => 0.3 * Math.sin(i / 5));
+  const y = new Float32Array(512);
+  const z = new Float32Array(512);
+  rack.process(x, x, y, z, 512);
+  assert.ok(x.every((v, i) => Math.abs(v - y[i]) < 1e-6));
+  // An old 4-slot preset becomes the three modules, chained in its old order.
+  const old = emptyState();
+  old.slots[0] = newSlot('s1', 'spring');
+  old.slots[1] = newSlot('s2', 'tape');
+  const pb = toPatchbay(old);
+  assert.deepEqual(pb.slots.map((s) => s.id), ['tape', 'spring', 'phaser']);
+  assert.equal(pb.slots.find((s) => s.id === 'spring').input, 'in');
+  assert.equal(pb.slots.find((s) => s.id === 'tape').input, 'slot:spring');
+});

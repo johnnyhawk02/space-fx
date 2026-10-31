@@ -46,6 +46,49 @@ export function newMixer(id) {
   };
 }
 
+// The patchbay: one each of Tape, Spring and Phaser, patched in that order to start.
+export const MODULES = ['tape', 'spring', 'phaser'];
+
+export function patchbayState() {
+  const st = emptyState();
+  st.slots = MODULES.map((t) => newSlot(t, t));
+  st.slots[0].input = 'in';
+  st.slots[1].input = 'slot:tape';
+  st.slots[2].input = 'slot:spring';
+  st.out = 'slot:phaser';
+  return st;
+}
+
+// Make any saved state a patchbay: the three modules, keeping settings and patching where they
+// can be kept (older presets had 4 slots with any effect in each).
+export function toPatchbay(st) {
+  if (st.slots.length === MODULES.length && st.slots.every((s, i) => s.id === MODULES[i] && s.type === MODULES[i])) return st;
+  const out = patchbayState();
+  out.name = st.name;
+  out.tempo = st.tempo ?? 120;
+  out.main = { ...out.main, ...st.main };
+  out.macros = st.macros ?? out.macros;
+  out.mixers = st.mixers ?? [];
+  const filled = st.slots.filter((s) => s.type);
+  for (const m of out.slots) {
+    const from = filled.find((s) => s.type === m.type);
+    if (from) {
+      m.params = { ...m.params, ...from.params };
+      m.on = from.on;
+    }
+  }
+  // The old chain order, as a patch.
+  const order = [...new Set(filled.map((s) => s.type))];
+  for (const t of MODULES) if (!order.includes(t)) order.push(t);
+  order.forEach((t, i) => (out.slots.find((s) => s.id === t).input = i === 0 ? 'in' : `slot:${order[i - 1]}`));
+  out.out = `slot:${order[order.length - 1]}`;
+  const ids = new Map(st.slots.map((s) => [s.id, s.type]));
+  const fix = (src) => (src?.startsWith('slot:') && ids.get(src.slice(5)) ? `slot:${ids.get(src.slice(5))}` : src);
+  for (const m of out.mixers) for (const c of m.channels) c.source = fix(c.source);
+  for (const mc of out.macros) mc.maps = mc.maps.filter((x) => x.target !== 'slot' || ids.get(x.slot)).map((x) => (x.target === 'slot' ? { ...x, slot: ids.get(x.slot) } : x));
+  return out;
+}
+
 export function newSlot(id, type) {
   return { id, type, on: true, input: 'auto', params: type ? defaults(type) : {} };
 }
@@ -89,6 +132,36 @@ class MixerDsp {
   }
 }
 
+// Slot indices in the order the patch needs them: anything a slot listens to (through mixers
+// too) runs before it, except round a feedback loop.
+function runOrder(st) {
+  const order = [];
+  const seen = new Set();
+  const mixSeen = new Set();
+  const index = new Map(st.slots.map((s, i) => [s.id, i]));
+  const visit = (src) => {
+    if (!src) return;
+    if (src.startsWith('slot:')) visitSlot(index.get(src.slice(5)));
+    else if (src.startsWith('mix:') && !mixSeen.has(src)) {
+      mixSeen.add(src);
+      const m = st.mixers.find((x) => `mix:${x.id}` === src);
+      if (m) for (const c of m.channels) visit(c.source);
+    }
+  };
+  const visitSlot = (i) => {
+    if (i == null || seen.has(i)) return;
+    seen.add(i);
+    const s = st.slots[i];
+    visit(!s.input || s.input === 'auto' ? (i > 0 ? `slot:${st.slots[i - 1].id}` : 'in') : s.input);
+    order.push(i);
+  };
+  const last = st.slots.length ? `slot:${st.slots[st.slots.length - 1].id}` : 'in';
+  visit(!st.out || st.out === 'auto' ? last : st.out);
+  for (const m of st.mixers) visit(`mix:${m.id}`);
+  st.slots.forEach((_, i) => visitSlot(i));
+  return order;
+}
+
 export class Rack {
   constructor(sampleRate) {
     this.rate = sampleRate;
@@ -122,6 +195,7 @@ export class Rack {
     for (const m of state.mixers) if (!this.mixers.has(m.id)) this.mixers.set(m.id, new MixerDsp(this.rate));
     for (const id of [...this.mixers.keys()]) if (!state.mixers.some((m) => m.id === id)) this.mixers.delete(id);
     this.slotNodes = new Map(state.slots.map((s) => [s.id, this.effects.get(s.id)?.node || new Node()]));
+    this.order = runOrder(state);
   }
 
   // Clear every tail.
@@ -189,8 +263,8 @@ export class Rack {
     this.input.cur.R.set(this.inR);
     this.input.done = true;
 
-    // Slots in order.
-    for (let i = 0; i < r.slots.length; i++) this.runSlot(i);
+    // Slots in the order the patch runs (so forward connections arrive in the same block).
+    for (const i of this.order) this.runSlot(i);
 
     // Rack Out.
     const last = r.slots.length ? `slot:${r.slots[r.slots.length - 1].id}` : 'in';
