@@ -200,3 +200,4 @@ body.patching, body.patching * { cursor: crosshair !important; }
 .routing-panel #routing { padding: 0; }
 .routing-panel .ghead { border-top: none; padding: 0 0 0 4px; margin: 0; }
 .routing-panel #main { display: flex; justify-content: flex-start; gap: 2px; padding: 0; }
+.slot[data-type=phaser] .params:not(.grouped) { grid-template-columns: repeat(4, 58px) !important; }

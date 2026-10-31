@@ -115,10 +115,9 @@ function spring(g, w, h, p, lvl, t, tempo, st) {
 }
 
 function phaser(g, w, h, p, lvl, t, tempo) {
-  // Frequency response, 20 Hz to 20 kHz, with notches sweeping at Rate.
+  // Frequency response, 20 Hz to 20 kHz, with notches sweeping at Rate around Center, as wide
+  // as Depth. Feedback sharpens them; with Spread, the right side is drawn too, dashed.
   const hz = p.sync ? tempo / 60 / Math.max(p.rate_beats, 0.0625) : p.speed;
-  const ph = 0.5 - 0.5 * Math.cos(t * hz * Math.PI * 2);
-  const fc = 80 * 25 ** ph;
   const top = 8;
   const bot = h - 8;
   g.strokeStyle = FAINT;
@@ -130,21 +129,35 @@ function phaser(g, w, h, p, lvl, t, tempo) {
     g.lineTo(Math.round(x) + 0.5, bot);
     g.stroke();
   }
-  g.strokeStyle = lvl > 0.02 ? INK : MID;
-  g.lineWidth = 1.4;
-  g.beginPath();
-  for (let i = 0; i <= w - 8; i++) {
-    const f = 20 * 1000 ** (i / (w - 8));
-    let m = 1;
-    for (const k of [1, 3, 9]) {
-      const d = Math.log2(f / (fc * k)) * 3;
-      m *= 1 - p.mix * Math.exp(-d * d);
+  const sharp = 3 + 9 * (p.feedback ?? 0);
+  const curve = (phase, dashed) => {
+    const tri = (ph) => (ph < 0.65 ? ph / 0.65 : 1 - (ph - 0.65) / 0.35);
+    const sweep = 2 * tri(phase) - 1;
+    const fc = (p.center ?? 1663) * 2.2 ** ((p.depth ?? 0.6) / 0.6 * sweep);
+    g.setLineDash(dashed ? [3, 3] : []);
+    g.beginPath();
+    for (let i = 0; i <= w - 8; i++) {
+      const f = 20 * 1000 ** (i / (w - 8));
+      let m = 1;
+      for (const k of [0.45, 1, 2.2]) {
+        const d = Math.log2(f / (fc * k)) * sharp;
+        m *= 1 - p.mix * Math.exp(-d * d);
+      }
+      const y = top + (1 - m) * (bot - top);
+      if (i) g.lineTo(4 + i, y);
+      else g.moveTo(4 + i, y);
     }
-    const y = top + (1 - m) * (bot - top);
-    if (i) g.lineTo(4 + i, y);
-    else g.moveTo(4 + i, y);
+    g.stroke();
+    g.setLineDash([]);
+  };
+  const ph = (t * hz) % 1;
+  g.lineWidth = 1.4;
+  if ((p.spread ?? 0) > 0) {
+    g.strokeStyle = MID;
+    curve((ph + p.spread / 360) % 1, true);
   }
-  g.stroke();
+  g.strokeStyle = lvl > 0.02 ? INK : MID;
+  curve(ph, false);
 }
 
 const DRAW = { tape, spring, phaser };
