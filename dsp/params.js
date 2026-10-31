@@ -46,16 +46,8 @@ export const DEVICES = {
   },
 };
 
-// A Sub Mixer's own controls (its channels are handled separately).
-export const MIXER_PARAMS = [
-  { id: 'low_cut', label: 'Low Cut', kind: 'log', min: 20, max: 2000, def: 20, unit: 'Hz', digits: 0 },
-  { id: 'high_cut', label: 'High Cut', kind: 'log', min: 500, max: 20000, def: 20000, unit: 'Hz', digits: 0 },
-  { id: 'delay', label: 'Delay', kind: 'lin', min: 0, max: 1000, def: 0, unit: 'ms', digits: 0 },
-];
-export const CHANNEL_PARAMS = [
-  { id: 'level', label: 'Level', kind: 'lin', min: -60, max: 6, def: 0, unit: 'dB', digits: 1 },
-  { id: 'pan', label: 'Pan', kind: 'lin', min: -1, max: 1, def: 0, digits: 2 },
-];
+// A send in the routing grid: how much of one module's output goes into another's input.
+export const ROUTE_SPEC = { id: 'send', label: 'Send', kind: 'lin', min: -60, max: 6, def: -60, unit: 'dB', digits: 1 };
 
 export function defaults(type) {
   const out = {};

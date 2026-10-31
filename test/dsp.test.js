@@ -4,7 +4,7 @@ import { Tape } from '../dsp/tape.js';
 import { Phaser } from '../dsp/phaser.js';
 import { Spring } from '../dsp/spring.js';
 import { defaults } from '../dsp/params.js';
-import { Rack, emptyState, newSlot, newMixer } from '../dsp/rack.js';
+import { Rack, rackState, chainRoutes, toRack, MODULES } from '../dsp/rack.js';
 import { randomRack } from '../dsp/random.js';
 import { presetName } from '../dsp/names.js';
 
@@ -49,18 +49,13 @@ test('phaser notch moves', () => {
   assert.ok(Math.min(...env) < Math.max(...env) * 0.6 && Math.max(...env) < 1);
 });
 
-test('rack: series chain, bypass, feedback mixer, macros', () => {
-  const st = emptyState();
-  st.slots[0] = newSlot('s1', 'tape');
-  st.slots[1] = newSlot('s2', 'spring');
-  st.slots[2] = newSlot('s3', 'phaser');
-  const m = newMixer('A');
-  m.channels[0].source = 'in';
-  m.channels[1] = { source: 'slot:s3', level: -6, pan: 0 };
-  st.mixers.push(m);
-  st.slots[0].input = 'mix:A';
-  st.macros[0].maps.push({ target: 'slot', slot: 's1', param: 'feedback', min: 0.2, max: 1 });
+test('rack: chain, bypass, feedback send, macro on a send', () => {
+  const st = rackState();
+  st.routes.phaser.tape = -6; // feedback from the end back to the start
+  st.macros[0].maps.push({ target: 'slot', slot: 'tape', param: 'feedback', min: 0.2, max: 1 });
+  st.macros[1].maps.push({ target: 'route', src: 'spring', dst: 'out', min: 0, max: 1 });
   st.macros[0].value = 1;
+  st.macros[1].value = 0.5;
   const rack = new Rack(SR);
   rack.setState(st);
   const [L, R] = impulse(SR * 3);
@@ -69,16 +64,33 @@ test('rack: series chain, bypass, feedback mixer, macros', () => {
   rack.process(L, R, oL, oR, L.length);
   assert.ok(finite(oL) && peak(oL) <= 1);
   assert.ok(peak(oL.subarray(SR * 2)) > 1e-4, 'feedback keeps it going');
-  // Everything bypassed: output is the input.
-  st.slots.forEach((s) => (s.on = false));
-  st.slots[0].input = 'auto';
+  // Everything bypassed: output is the input, with no delay, whatever order the sends run in.
+  const by = rackState();
+  by.slots.forEach((s) => (s.on = false));
+  by.routes = chainRoutes(['phaser', 'spring', 'tape']);
   const r2 = new Rack(SR);
-  r2.setState(st);
+  r2.setState(by);
   const x = new Float32Array(1000).map((_, i) => 0.3 * Math.sin(i / 7));
   const y = new Float32Array(1000);
   const y2 = new Float32Array(1000);
   r2.process(x, x, y, y2, 1000);
   assert.ok(x.every((v, i) => Math.abs(v - y[i]) < 1e-6));
+});
+
+test('old presets become the grid', () => {
+  // Four slots, Spring then Tape.
+  const old = { tempo: 100, slots: [
+    { id: 's1', type: 'spring', on: true, input: 'auto', params: { decay: 0.4 } },
+    { id: 's2', type: 'tape', on: false, input: 'auto', params: {} },
+    { id: 's3', type: null, input: 'auto', params: {} },
+    { id: 's4', type: null, input: 'auto', params: {} }], mixers: [], out: 'auto', macros: [], main: { dryWet: 1 } };
+  const st = toRack(old);
+  assert.deepEqual(st.slots.map((s) => s.id), MODULES);
+  assert.equal(st.routes.in.spring, 0);
+  assert.equal(st.routes.spring.tape, 0);
+  assert.equal(st.routes.tape.out, 0);
+  assert.equal(st.slots.find((s) => s.id === 'spring').params.decay, 0.4);
+  assert.equal(st.slots.find((s) => s.id === 'tape').on, false);
 });
 
 test('random racks are finite', () => {
@@ -105,28 +117,3 @@ test('preset names', () => {
   }
 });
 
-test('patchbay runs modules in patch order, with no delay on forward cables', async () => {
-  const { patchbayState, toPatchbay } = await import('../dsp/rack.js');
-  const st = patchbayState();
-  st.slots.forEach((s) => (s.on = false));
-  // Patch backwards against the array order: in -> phaser -> spring -> tape -> out.
-  st.slots.find((s) => s.id === 'phaser').input = 'in';
-  st.slots.find((s) => s.id === 'spring').input = 'slot:phaser';
-  st.slots.find((s) => s.id === 'tape').input = 'slot:spring';
-  st.out = 'slot:tape';
-  const rack = new Rack(SR);
-  rack.setState(st);
-  const x = new Float32Array(512).map((_, i) => 0.3 * Math.sin(i / 5));
-  const y = new Float32Array(512);
-  const z = new Float32Array(512);
-  rack.process(x, x, y, z, 512);
-  assert.ok(x.every((v, i) => Math.abs(v - y[i]) < 1e-6));
-  // An old 4-slot preset becomes the three modules, chained in its old order.
-  const old = emptyState();
-  old.slots[0] = newSlot('s1', 'spring');
-  old.slots[1] = newSlot('s2', 'tape');
-  const pb = toPatchbay(old);
-  assert.deepEqual(pb.slots.map((s) => s.id), ['tape', 'spring', 'phaser']);
-  assert.equal(pb.slots.find((s) => s.id === 'spring').input, 'in');
-  assert.equal(pb.slots.find((s) => s.id === 'tape').input, 'slot:spring');
-});
