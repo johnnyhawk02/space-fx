@@ -11,7 +11,7 @@ headed for VST3.
 
 Layout:
 
-    dsp/      plain JS modules, no DOM: tape, phaser, spring, rack (routing), params
+    dsp/      plain JS modules, no DOM: tape, filter (Polivoks), delay, phaser, spring, rack (routing), params
     worklet/  the AudioWorklet processor that runs the rack
     host/     the browser UI
     tools/    Rust reference renderer and comparison scripts

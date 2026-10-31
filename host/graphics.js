@@ -1,5 +1,5 @@
 // A small black-and-white picture at the top of each module, drawn from its settings and its
-// level: Tape's reels and echoes, Spring's coil, Phaser's sweeping notches. UI only.
+// level: Tape's reels and echoes, Filter's response, Spring's coil, Phaser's sweeping notches. UI only.
 
 const INK = '#e8e8e8';
 const MID = '#8a8a8a';
@@ -255,7 +255,73 @@ function phaser(g, w, h, p, lvl, t, tempo) {
   curve(ph, false);
 }
 
-const DRAW = { tape, delay, spring, phaser };
+// Filter's damping from Resonance, as in dsp/filter.js.
+const damping = (res) => 1.6 - 1.75 * Math.min(Math.max(res, 0), 1) ** 0.8;
+
+function filter(g, w, h, p, lvl, t) {
+  // Frequency response, 20 Hz to 20 kHz: low-pass or band-pass, the peak at Cutoff as tall as
+  // Resonance. Env lifts Cutoff with the level. Past the point where it self-oscillates the
+  // peak hits the top and a slew-limited triangle wave rides there, like the real one screaming.
+  const top = 8;
+  const bot = h - 8;
+  const span = w - 8;
+  const xOf = (f) => 4 + (Math.log10(f / 20) / 3) * span;
+  g.strokeStyle = FAINT;
+  g.lineWidth = 1;
+  for (const f of [100, 1000, 10000]) {
+    const x = Math.round(xOf(f)) + 0.5;
+    g.beginPath();
+    g.moveTo(x, top);
+    g.lineTo(x, bot);
+    g.stroke();
+  }
+  const k = damping(p.resonance ?? 0.5);
+  const fc = Math.min((p.cutoff ?? 1500) * 2 ** (4 * (p.env ?? 0) * lvl), 16000);
+  const bp = Math.round(p.mode ?? 0) === 1;
+  const kd = Math.max(k, 0.06);
+  const dbTop = 18;
+  const dbBot = -36;
+  const yOf = (db) => top + ((dbTop - Math.min(Math.max(db, dbBot), dbTop)) / (dbTop - dbBot)) * (bot - top);
+  // 0 dB line.
+  g.strokeStyle = FAINT;
+  g.setLineDash([2, 3]);
+  g.beginPath();
+  g.moveTo(4, Math.round(yOf(0)) + 0.5);
+  g.lineTo(w - 4, Math.round(yOf(0)) + 0.5);
+  g.stroke();
+  g.setLineDash([]);
+  g.strokeStyle = lvl > 0.02 ? INK : MID;
+  g.lineWidth = 1.4;
+  g.beginPath();
+  for (let i = 0; i <= span; i++) {
+    const f = 20 * 1000 ** (i / span);
+    const v = f / fc;
+    const den = Math.hypot(1 - v * v, kd * v);
+    const mag = (bp ? kd * v : 1) / den;
+    const y = yOf(20 * Math.log10(mag));
+    if (i) g.lineTo(4 + i, y);
+    else g.moveTo(4 + i, y);
+  }
+  g.stroke();
+  if (k < 0.06) {
+    // Self-oscillation: a triangle wave scrolling across the top.
+    const amp = 5;
+    const per = 10;
+    const ph = (t * 30) % per;
+    g.strokeStyle = INK;
+    g.lineWidth = 1;
+    g.beginPath();
+    for (let x = 4; x <= w - 4; x++) {
+      const u = (((x + ph) % per) / per);
+      const y = top + amp - amp * 2 * Math.abs(2 * u - 1) + amp;
+      if (x === 4) g.moveTo(x, y);
+      else g.lineTo(x, y);
+    }
+    g.stroke();
+  }
+}
+
+const DRAW = { tape, filter, delay, spring, phaser };
 
 // Draw every module's picture each frame. `get()` gives the rack state and latest peaks.
 export function startGraphics(get) {

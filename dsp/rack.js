@@ -1,4 +1,4 @@
-// The rack: Tape, Spring and Phaser, routed by a grid of send levels. Every module's output can
+// The rack: Tape, Filter, Delay, Spring and Phaser, routed by a grid of send levels. Every module's output can
 // go to every module's input (a 3 x 3 grid, the diagonal being a module fed back into itself),
 // Rack In can go to any module, and any module can go to Rack Out. Plus 8 Macros, Main Dry/Wet
 // and a safety limiter. Plain JS with no DOM or Web Audio, so the same code runs in the
@@ -10,26 +10,27 @@
 
 import { Tape } from './tape.js';
 import { Delay } from './delay.js';
+import { Filter } from './filter.js';
 import { Phaser } from './phaser.js';
 import { Spring } from './spring.js';
 import { DEVICES, defaults, fromNorm, ROUTE_SPEC } from './params.js';
 
 export const BLOCK = 64;
 export const MACROS = 8;
-export const MODULES = ['tape', 'delay', 'spring', 'phaser'];
+export const MODULES = ['tape', 'filter', 'delay', 'spring', 'phaser'];
 export const SOURCES = ['in', ...MODULES];
 export const DESTS = [...MODULES, 'out'];
 export const OFF = -60; // dB: the bottom of a send dial, silent
 
-const EFFECTS = { tape: Tape, delay: Delay, phaser: Phaser, spring: Spring };
+const EFFECTS = { tape: Tape, filter: Filter, delay: Delay, phaser: Phaser, spring: Spring };
 
 // The routing Modes: a few clearly different shapes instead of a grid of sends.
 // Feedback sends whatever reaches Rack Out back into the start, through a soft clipper.
 export const MODES = [
-  { label: 'Series', order: ['tape', 'delay', 'spring', 'phaser'] }, // tape, echoes, reverb, sweep
-  { label: 'Reverse', order: ['phaser', 'spring', 'delay', 'tape'] }, // the reverb's tail gets echoed
-  { label: 'Parallel', parallel: true },                               // all four side by side
-  { label: 'Echo + Verb', order: ['tape', 'delay', 'spring'] },       // no Phaser
+  { label: 'Series', order: ['tape', 'filter', 'delay', 'spring', 'phaser'] }, // tape, filter, echoes, reverb, sweep
+  { label: 'Reverse', order: ['phaser', 'spring', 'delay', 'filter', 'tape'] }, // the reverb's tail gets echoed and filtered
+  { label: 'Parallel', parallel: true },                                         // all five side by side
+  { label: 'Echo + Verb', order: ['tape', 'delay', 'spring'] },                 // no Filter or Phaser
 ];
 export const MAIN_SPECS = {
   mode: { id: 'mode', label: 'Mode', kind: 'values', values: MODES.map((m, i) => [m.label, i]), def: 0 },
@@ -107,8 +108,21 @@ function addDelay(st) {
   return { ...st, slots, main, routes: st.routes ? modeRoutes(main?.mode ?? 0, main?.loop ?? 0) : st.routes };
 }
 
+// Racks from before the Filter: add one after Tape, switched off so they sound as they did.
+function addFilter(st) {
+  if (!st.slots || st.slots.some((s) => s.type === 'filter') || !st.slots.some((s) => s.type === 'tape')) return st;
+  const slots = [...st.slots];
+  slots.splice(slots.findIndex((s) => s.type === 'tape') + 1, 0, { id: 'filter', type: 'filter', on: false, params: defaults('filter') });
+  return { ...st, slots, routes: st.routes ? modeRoutes(st.main?.mode ?? 0, st.main?.loop ?? 0) : st.routes };
+}
+
 export function toRack(st) {
-  st = addDelay(st);
+  st = addFilter(addDelay(st));
+  // Every module there once, just in another order: put them in the usual order.
+  const ids = st.slots?.map((s) => s.id) || [];
+  if (ids.length === MODULES.length && MODULES.every((m) => ids.includes(m)) && st.slots.every((s) => s.id === s.type)) {
+    st = { ...st, slots: MODULES.map((m) => st.slots.find((s) => s.id === m)) };
+  }
   if (st.routes && st.slots?.length === MODULES.length && st.slots.every((s, i) => s.id === MODULES[i])) {
     // Racks from before Modes start in Series.
     if (st.main && !('mode' in st.main)) st.main = { ...st.main, mode: 0, loop: 0 };
