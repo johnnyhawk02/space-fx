@@ -19,6 +19,11 @@ Layout:
 
 ## Run it
 
+Live at https://johnnyhawk02.github.io/space-fx/ (published from main by
+`.github/workflows/pages.yml`).
+
+Locally:
+
     npm run serve        # or any static server: python3 -m http.server
     open http://localhost:3000
 
