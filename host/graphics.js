@@ -40,63 +40,63 @@ function reel(g, x, y, r, pack, angle) {
 }
 
 function tape(g, w, h, p, lvl, t, tempo, st) {
-  // Two reels with tape wound on them, the tape running down round two guides, across the
-  // heads and back up. It moves at tape Speed (with a little Wow), and slowly spools from the
-  // left reel to the right one and back.
-  const r = Math.min(h * 0.3, w * 0.2);
-  const cy = h * 0.36;
-  const x1 = w / 2 - r - 10;
-  const x2 = w / 2 + r + 10;
+  // Two reels with tape wound on them. The tape leaves the top of the left pack, runs across
+  // the top over two guides and the heads, and winds onto the top of the right pack, so both
+  // reels turn clockwise, as on a reel-to-reel. It moves gently at tape Speed (with a little Wow)
+  // and slowly spools from left to right and back.
+  const r = Math.min(h * 0.3, w * 0.17);
+  const cy = h * 0.6;
+  const x1 = w / 2 - r - 26;
+  const x2 = w / 2 + r + 26;
   const v = (p.speed / 15) * (1 + p.wow * 0.3 * Math.sin(t * 2.1));
-  st.angle = (st.angle || 0) + v * 0.05;
-  st.travel = (st.travel || 0) + v * 0.8;
-  st.wound = (st.wound || 0) + v * 0.0006;
+  st.travel = (st.travel || 0) + v * 0.35;
+  st.wound = (st.wound || 0) + v * 0.0004;
   const prog = 1 - Math.abs((st.wound % 2) - 1); // 0..1..0
   const pL = r * (0.3 + 0.62 * (1 - prog));
   const pR = r * (0.3 + 0.62 * prog);
-  reel(g, x1, cy, r, pL, st.angle * (r / pL) * 0.5);
-  reel(g, x2, cy, r, pR, st.angle * (r / pR) * 0.5);
+  // Each reel turns so its pack's edge keeps pace with the tape: smaller pack, faster turn.
+  st.aL = (st.aL || 0) + (v * 0.35) / pL;
+  st.aR = (st.aR || 0) + (v * 0.35) / pR;
+  reel(g, x1, cy, r, pL, st.aL);
+  reel(g, x2, cy, r, pR, st.aR);
 
-  // Tape path: off the left pack, round a guide, across the heads, round a guide, onto the right pack.
-  const hy = h - 18;
-  const g1 = x1 - r * 0.55;
-  const g2 = x2 + r * 0.55;
+  // Tape path across the top.
+  const ty = cy - r - 12;
+  const g1 = x1 + r * 0.55;
+  const g2 = x2 - r * 0.55;
   const gr = 3;
   g.strokeStyle = INK;
   g.lineWidth = 1.4;
   g.beginPath();
-  g.moveTo(x1 - pL, cy);
-  g.lineTo(g1 - gr, hy);
-  g.arc(g1, hy, gr, Math.PI, Math.PI / 2, true);
-  g.lineTo(g2, hy + gr);
-  g.arc(g2, hy, gr, Math.PI / 2, 0, true);
-  g.lineTo(x2 + pR, cy);
+  g.moveTo(x1, cy - pL);
+  g.lineTo(g1, ty - gr);
+  g.lineTo(g2, ty - gr);
+  g.lineTo(x2, cy - pR);
   g.stroke();
-  // Marks on the tape, so you can see it run.
+  // Marks on the tape, so you can see it run left to right.
   g.save();
   g.strokeStyle = '#161616';
-  g.lineWidth = 1.4;
   g.setLineDash([2, 9]);
   g.lineDashOffset = -st.travel;
   g.beginPath();
-  g.moveTo(g1, hy + gr);
-  g.lineTo(g2, hy + gr);
+  g.moveTo(g1, ty - gr);
+  g.lineTo(g2, ty - gr);
   g.stroke();
   g.restore();
-  // Guides, then the heads under the tape: erase, record, play.
+  // Guides under the tape, then the heads: erase, record, play.
   g.strokeStyle = MID;
   g.lineWidth = 1;
   for (const gx of [g1, g2]) {
     g.beginPath();
-    g.arc(gx, hy, gr - 1, 0, Math.PI * 2);
+    g.arc(gx, ty, gr - 1, 0, Math.PI * 2);
     g.stroke();
   }
   const hx = (x1 + x2) / 2;
   g.fillStyle = MID;
-  g.fillRect(hx - 22, hy + gr + 1, 8, 7);
-  g.fillRect(hx - 4, hy + gr + 1, 8, 7);
+  g.fillRect(hx - 20, ty - gr + 1, 8, 7);
+  g.fillRect(hx - 4, ty - gr + 1, 8, 7);
   g.fillStyle = lvl > 0.02 ? INK : MID;
-  g.fillRect(hx + 14, hy + gr + 1, 8, 7);
+  g.fillRect(hx + 12, ty - gr + 1, 8, 7);
 }
 
 function delay(g, w, h, p, lvl, t, tempo) {
