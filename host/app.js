@@ -375,6 +375,7 @@ function renderSlots() {
       slot.on = !slot.on;
       act.classList.toggle('on', slot.on);
       send();
+      drawFlow();
     };
     head.append(act, el('span', 'sname', DEVICES[slot.type].name));
     s.append(head);
@@ -428,23 +429,68 @@ function renderRouting() {
       drawFlow();
     }, { target: 'main', param: id }));
   }
-  box.append(dials, el('div', 'flow'));
+  box.append(el('div', 'flow'), dials);
   drawFlow();
 }
 
-// A one-line picture of the current Mode: what feeds what, and the Feedback path.
+// A diagram of the current Mode: boxes for the modules, arrows for the signal, and a loop
+// for Feedback. A module that's switched off is drawn dashed.
 function drawFlow() {
   const box = document.querySelector('#routing .flow');
   if (!box) return;
   const m = MODES[Math.round(state.main.mode ?? 0)] || MODES[0];
-  const fb = (state.main.loop ?? 0) > 0;
+  const loop = state.main.loop ?? 0;
+  const W = 360;
+  const H = 114;
+  const on = (t) => state.slots.find((s) => s.id === t)?.on !== false;
+  const parts = [];
+  const arrow = (x1, y1, x2, y2) => parts.push(`<path class="wire" d="M${x1} ${y1} L${x2} ${y2}" marker-end="url(#arr)"/>`);
+  const node = (x, y, w, label, t) => {
+    parts.push(`<rect class="mod${t && !on(t) ? ' off' : ''}" x="${x}" y="${y - 11}" width="${w}" height="22" rx="2"/>`);
+    parts.push(`<text x="${x + w / 2}" y="${y + 4}">${label}</text>`);
+  };
+  const end = (x, y, label) => parts.push(`<text class="end" x="${x}" y="${y + 4}">${label}</text>`);
+  const fbOpacity = loop > 0 ? 0.35 + 0.65 * loop : 0;
   if (m.parallel) {
-    box.innerHTML = `<div class="par"><span>In</span><span class="fan">${['Tape', 'Spring', 'Phaser'].map((n) => `<b>${n}${fb ? ' ↺' : ''}</b>`).join('')}</span><span>Out</span></div>`;
+    const ys = [26, 62, 98];
+    const x = 130;
+    const w = 80;
+    end(18, 62, 'In');
+    end(W - 18, 62, 'Out');
+    MODULES_ORDER.forEach((t, i) => {
+      parts.push(`<path class="wire" d="M34 62 C 80 62, 80 ${ys[i]}, ${x - 4} ${ys[i]}" marker-end="url(#arr)"/>`);
+      parts.push(`<path class="wire" d="M${x + w} ${ys[i]} C ${x + w + 50} ${ys[i]}, ${x + w + 50} 62, ${W - 36} 62" marker-end="url(#arr)"/>`);
+      node(x, ys[i], w, NAMES[t], t);
+      if (fbOpacity) parts.push(`<path class="fb" style="opacity:${fbOpacity}" d="M${x + w / 2 + 14} ${ys[i] - 11} C ${x + w / 2 + 14} ${ys[i] - 24}, ${x + w / 2 - 14} ${ys[i] - 24}, ${x + w / 2 - 14} ${ys[i] - 14}" marker-end="url(#arrfb)"/>`);
+    });
   } else {
-    const names = m.order.map((t) => `<b>${NAMES[t]}</b>`).join('<i>→</i>');
-    box.innerHTML = `<div class="ser"><span>In</span><i>→</i>${names}<i>→</i><span>Out</span></div>${fb ? `<div class="back">↺ ${NAMES[m.order[m.order.length - 1]]} back into ${NAMES[m.order[0]]}</div>` : ''}`;
+    const n = m.order.length;
+    const w = 70;
+    const gap = (W - 60 - n * w) / (n - 1 || 1);
+    const y = 74;
+    const xs = m.order.map((_, i) => 34 + i * (w + Math.min(gap, 30)) + (W - 68 - (n * w + (n - 1) * Math.min(gap, 30))) / 2);
+    end(14, y, 'In');
+    end(W - 14, y, 'Out');
+    arrow(26, y, xs[0] - 4, y);
+    m.order.forEach((t, i) => {
+      node(xs[i], y, w, NAMES[t], t);
+      if (i) arrow(xs[i - 1] + w, y, xs[i] - 4, y);
+    });
+    arrow(xs[n - 1] + w, y, W - 30, y);
+    if (fbOpacity) {
+      const x1 = xs[n - 1] + w / 2;
+      const x0 = xs[0] + w / 2;
+      parts.push(`<path class="fb" style="opacity:${fbOpacity}" d="M${x1} ${y - 11} C ${x1} 22, ${x0} 22, ${x0} ${y - 15}" marker-end="url(#arrfb)"/>`);
+      parts.push(`<text class="fbl" style="opacity:${fbOpacity}" x="${(x0 + x1) / 2}" y="20">Feedback</text>`);
+    }
   }
+  box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}">
+    <defs>
+      <marker id="arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#9a9a9a"/></marker>
+      <marker id="arrfb" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#e8e8e8"/></marker>
+    </defs>${parts.join('')}</svg>`;
 }
+const MODULES_ORDER = ['tape', 'spring', 'phaser'];
 
 function renderMain() {
   const box = $('main');
