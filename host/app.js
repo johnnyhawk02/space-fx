@@ -1,8 +1,8 @@
 // The browser host: load a file, play it through the rack, edit the rack, export the result.
 // All DOM code lives here; the sound is made by dsp/ inside the AudioWorklet.
 
-import { DEVICES, ROUTE_SPEC, fromNorm, toNorm, format } from '../dsp/params.js';
-import { rackState, toRack, SOURCES, DESTS } from '../dsp/rack.js';
+import { DEVICES, fromNorm, toNorm, format } from '../dsp/params.js';
+import { rackState, toRack, MODES, MAIN_SPECS } from '../dsp/rack.js';
 import { presetName } from '../dsp/names.js';
 import { randomRack } from '../dsp/random.js';
 import { encodeWav } from './wav.js';
@@ -17,10 +17,7 @@ const el = (tag, cls, text) => {
 };
 
 const PRESET_KEY = 'spacefx.presets';
-const MAIN_PARAMS = {
-  dryWet: { id: 'dryWet', label: 'Dry/Wet', kind: 'lin', min: 0, max: 1, def: 1, pct: true },
-  volume: { id: 'volume', label: 'Volume', kind: 'lin', min: -60, max: 6, def: 0, unit: 'dB', digits: 1 },
-};
+const MAIN_PARAMS = MAIN_SPECS;
 const MACRO_SPEC = { id: 'macro', label: 'Macro', kind: 'lin', min: 0, max: 1, def: 0, pct: true };
 
 let state = startState();
@@ -422,30 +419,30 @@ const NAMES = { in: 'Rack In', out: 'Rack Out', tape: 'Tape', spring: 'Spring', 
 function renderRouting() {
   const box = $('routing');
   box.innerHTML = '';
-  const grid = el('div', 'grid');
-  grid.style.gridTemplateColumns = `72px repeat(${DESTS.length}, 64px)`;
-  grid.append(el('div', 'corner dim', 'From \\ To'));
-  for (const d of DESTS) grid.append(el('div', `colhead${d === 'out' ? ' outcol' : ''}`, NAMES[d]));
-  for (const src of SOURCES) {
-    grid.append(el('div', `rowhead${src === 'in' ? ' inrow' : ''}`, NAMES[src]));
-    for (const dst of DESTS) {
-      const cellCls = `cell${src === 'in' ? ' inrow' : ''}${dst === 'out' ? ' outcol' : ''}${src === dst ? ' self' : ''}`;
-      if (!(dst in state.routes[src])) {
-        grid.append(el('div', cellCls));
-        continue;
-      }
-      const cell = el('div', cellCls);
-      const spec = { ...ROUTE_SPEC, label: src === dst ? 'Self' : '' };
-      const d = control(spec, () => state.routes[src][dst], (v) => {
-        state.routes[src][dst] = v;
-        send();
-      }, { target: 'route', src, dst });
-      d.title = `${NAMES[src]} to ${NAMES[dst]}`;
-      cell.append(d);
-      grid.append(cell);
-    }
+  const dials = el('div', 'mode-dials');
+  for (const id of ['mode', 'loop']) {
+    dials.append(control(MAIN_PARAMS[id], () => state.main[id] ?? 0, (v) => {
+      state.main[id] = v;
+      send();
+      drawFlow();
+    }, { target: 'main', param: id }));
   }
-  box.append(grid);
+  box.append(dials, el('div', 'flow'));
+  drawFlow();
+}
+
+// A one-line picture of the current Mode: what feeds what, and the Feedback path.
+function drawFlow() {
+  const box = document.querySelector('#routing .flow');
+  if (!box) return;
+  const m = MODES[Math.round(state.main.mode ?? 0)] || MODES[0];
+  const fb = (state.main.loop ?? 0) > 0;
+  if (m.parallel) {
+    box.innerHTML = `<div class="par"><span>In</span><span class="fan">${['Tape', 'Spring', 'Phaser'].map((n) => `<b>${n}${fb ? ' ↺' : ''}</b>`).join('')}</span><span>Out</span></div>`;
+  } else {
+    const names = m.order.map((t) => `<b>${NAMES[t]}</b>`).join('<i>→</i>');
+    box.innerHTML = `<div class="ser"><span>In</span><i>→</i>${names}<i>→</i><span>Out</span></div>${fb ? `<div class="back">↺ ${NAMES[m.order[m.order.length - 1]]} back into ${NAMES[m.order[0]]}</div>` : ''}`;
+  }
 }
 
 function renderMain() {

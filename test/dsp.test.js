@@ -4,7 +4,7 @@ import { Tape } from '../dsp/tape.js';
 import { Phaser } from '../dsp/phaser.js';
 import { Spring } from '../dsp/spring.js';
 import { defaults } from '../dsp/params.js';
-import { Rack, rackState, chainRoutes, toRack, MODULES } from '../dsp/rack.js';
+import { Rack, rackState, chainRoutes, toRack, MODULES, MODES } from '../dsp/rack.js';
 import { randomRack } from '../dsp/random.js';
 import { presetName } from '../dsp/names.js';
 
@@ -51,6 +51,7 @@ test('phaser notch moves', () => {
 
 test('rack: chain, bypass, feedback send, macro on a send', () => {
   const st = rackState();
+  st.main.mode = null; // hand-made sends
   st.routes.phaser.tape = -6; // feedback from the end back to the start
   st.macros[0].maps.push({ target: 'slot', slot: 'tape', param: 'feedback', min: 0.2, max: 1 });
   st.macros[1].maps.push({ target: 'route', src: 'spring', dst: 'out', min: 0, max: 1 });
@@ -67,6 +68,7 @@ test('rack: chain, bypass, feedback send, macro on a send', () => {
   // Everything bypassed: output is the input, with no delay, whatever order the sends run in.
   const by = rackState();
   by.slots.forEach((s) => (s.on = false));
+  by.main.mode = null;
   by.routes = chainRoutes(['phaser', 'spring', 'tape']);
   const r2 = new Rack(SR);
   r2.setState(by);
@@ -86,9 +88,7 @@ test('old presets become the grid', () => {
     { id: 's4', type: null, input: 'auto', params: {} }], mixers: [], out: 'auto', macros: [], main: { dryWet: 1 } };
   const st = toRack(old);
   assert.deepEqual(st.slots.map((s) => s.id), MODULES);
-  assert.equal(st.routes.in.spring, 0);
-  assert.equal(st.routes.spring.tape, 0);
-  assert.equal(st.routes.tape.out, 0);
+  assert.equal(st.main.mode, 0, 'starts in Series');
   assert.equal(st.slots.find((s) => s.id === 'spring').params.decay, 0.4);
   assert.equal(st.slots.find((s) => s.id === 'tape').on, false);
 });
@@ -131,4 +131,24 @@ test('tape glides to a new Time instead of jumping', () => {
   assert.ok(t.base > start && t.base - start <= 32 + 1e-9, 'moves at most half a frame per frame');
   for (let i = 0; i < 3000; i++) t.process(L, R, 64, p, rate / 2);
   assert.ok(Math.abs(t.base - (1.5 * rate / 2 - 16)) < 1, 'settles on the new Time');
+});
+
+test('every Mode passes sound, and Feedback keeps it going', () => {
+  for (let mode = 0; mode < MODES.length; mode++) {
+    for (const loop of [0, 1]) {
+      const st = rackState();
+      st.main.mode = mode;
+      st.main.loop = loop;
+      st.slots.forEach((s) => (s.params.mix = 1));
+      st.slots.find((s) => s.id === 'tape').params.feedback = 0;
+      const rack = new Rack(SR);
+      rack.setState(st);
+      const [L, R] = impulse(SR * 3);
+      const oL = new Float32Array(L.length);
+      const oR = new Float32Array(L.length);
+      rack.process(L, R, oL, oR, L.length);
+      assert.ok(finite(oL) && peak(oL) <= 1 && peak(oL) > 1e-3, `mode ${mode} loop ${loop}`);
+      if (loop) assert.ok(peak(oL.subarray(SR * 2)) > 1e-5, `mode ${mode} feeds back`);
+    }
+  }
 });

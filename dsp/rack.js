@@ -22,6 +22,21 @@ export const OFF = -60; // dB: the bottom of a send dial, silent
 
 const EFFECTS = { tape: Tape, phaser: Phaser, spring: Spring };
 
+// The routing Modes: a few clearly different shapes instead of a grid of sends.
+// Feedback sends whatever reaches Rack Out back into the start, through a soft clipper.
+export const MODES = [
+  { label: 'Series', order: ['tape', 'spring', 'phaser'] },     // echoes, then reverb, then sweep
+  { label: 'Reverse', order: ['phaser', 'spring', 'tape'] },    // the reverb's tail gets echoed
+  { label: 'Parallel', parallel: true },                         // all three side by side
+  { label: 'Echo + Verb', order: ['tape', 'spring'] },          // no Phaser
+];
+export const MAIN_SPECS = {
+  mode: { id: 'mode', label: 'Mode', kind: 'values', values: MODES.map((m, i) => [m.label, i]), def: 0 },
+  loop: { id: 'loop', label: 'Feedback', kind: 'lin', min: 0, max: 1, def: 0, pct: true },
+  dryWet: { id: 'dryWet', label: 'Dry/Wet', kind: 'lin', min: 0, max: 1, def: 1, pct: true },
+  volume: { id: 'volume', label: 'Volume', kind: 'lin', min: -60, max: 6, def: 0, unit: 'dB', digits: 1 },
+};
+
 // No sends at all.
 export function emptyRoutes() {
   const r = {};
@@ -42,24 +57,47 @@ export function chainRoutes(order) {
   return r;
 }
 
+// The sends a Mode makes. Feedback (0..1) goes from the end of the chain back to its start
+// (in Parallel, each module back into itself), up to -3 dB.
+export function modeRoutes(mode, loop = 0) {
+  const m = MODES[Math.round(mode)] || MODES[0];
+  const fb = loop > 0 ? 20 * Math.log10(loop * 0.7) : OFF;
+  if (m.parallel) {
+    const r = emptyRoutes();
+    for (const t of MODULES) {
+      r.in[t] = 0;
+      r[t].out = -4.8;
+      r[t][t] = fb;
+    }
+    return r;
+  }
+  const r = chainRoutes(m.order);
+  r[m.order[m.order.length - 1]][m.order[0]] = fb;
+  return r;
+}
+
 export function rackState() {
   return {
     tempo: 120,
     slots: MODULES.map((t) => ({ id: t, type: t, on: true, params: defaults(t) })),
     routes: chainRoutes(MODULES),
     macros: Array.from({ length: MACROS }, (_, i) => ({ name: `Macro ${i + 1}`, value: 0, maps: [] })),
-    main: { dryWet: 1, volume: 0 },
+    main: { mode: 0, loop: 0, dryWet: 1, volume: 0 },
   };
 }
 
 // Make any saved state a grid rack, keeping settings, and turning older patches (slot inputs,
 // cables, Sub Mixers) into sends where they can be.
 export function toRack(st) {
-  if (st.routes && st.slots?.length === MODULES.length && st.slots.every((s, i) => s.id === MODULES[i])) return st;
+  if (st.routes && st.slots?.length === MODULES.length && st.slots.every((s, i) => s.id === MODULES[i])) {
+    // Racks from before Modes start in Series.
+    if (st.main && !('mode' in st.main)) st.main = { ...st.main, mode: 0, loop: 0 };
+    return st;
+  }
   const out = rackState();
   out.name = st.name;
   out.tempo = st.tempo ?? 120;
-  out.main = { ...out.main, ...st.main };
+  out.main = { ...out.main, ...st.main, mode: 0, loop: 0 };
   const filled = (st.slots || []).filter((s) => s.type);
   const typeOf = new Map(filled.map((s) => [s.id, s.type]));
   for (const m of out.slots) {
@@ -169,9 +207,19 @@ export class Rack {
   resolved() {
     const st = this.state;
     const slots = st.slots.map((s) => ({ ...s, params: { ...s.params } }));
-    const routes = {};
-    for (const s of SOURCES) routes[s] = { ...st.routes[s] };
     const main = { ...st.main };
+    // Macros on Mode or Feedback first, since they decide the sends.
+    for (const macro of st.macros) {
+      for (const map of macro.maps) {
+        if (map.target === 'main' && MAIN_SPECS[map.param] && map.param !== 'dryWet') {
+          main[map.param] = fromNorm(MAIN_SPECS[map.param], map.min + (map.max - map.min) * macro.value);
+        }
+      }
+    }
+    // A Mode makes the sends; `mode: null` keeps hand-made sends (tests, and the engine underneath).
+    const base = main.mode == null ? st.routes : modeRoutes(main.mode, main.loop);
+    const routes = {};
+    for (const s of SOURCES) routes[s] = { ...base[s] };
     for (const macro of st.macros) {
       for (const map of macro.maps) {
         const v = map.min + (map.max - map.min) * macro.value;
