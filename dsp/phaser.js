@@ -22,7 +22,7 @@ function rJfet(vgs, v2) {
   return v2 / Math.max(IS0 * (1 - vgs / VP) ** 2 * (1 + LAMBDA * v2), 1e-12);
 }
 
-export const PHASER_DEFAULTS = { speed: 0.5, mix: 0.5 };
+export const PHASER_DEFAULTS = { sync: 0, speed: 0.5, rate_beats: 8, mix: 0.5 };
 
 export class Phaser {
   constructor(rate) {
@@ -36,12 +36,14 @@ export class Phaser {
     }));
   }
 
-  process(L, R, n, p) {
+  // `beat` is a beat's length in frames, for Sync.
+  process(L, R, n, p, beat = this.rate / 2) {
     const ts = 1 / this.rate;
     const hp = (fc) => Math.exp(-2 * Math.PI * fc * ts);
     const aIn = hp(1 / (2 * Math.PI * (10e3 + 470e3) * 0.01e-6));
     const aOut = hp(22);
-    const step = clamp(p.speed, 0.05, 12) * ts;
+    const hz = p.sync ? this.rate / beat / Math.max(p.rate_beats ?? 8, 0.0625) : p.speed;
+    const step = clamp(hz, 0.01, 12) * ts;
     const mix = clamp(p.mix, 0, 1);
     const io = [L, R];
     for (let f = 0; f < n; f++) {

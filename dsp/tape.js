@@ -105,7 +105,7 @@ export function lossFir(rate, ips, spacingUm) {
 }
 
 export const TAPE_DEFAULTS = {
-  beats: 0.75, feedback: 0.5, drive: 0.5, bias: 0.9, wow: 0.3, speed: 15, spacing: 5, mix: 0.5,
+  sync: 1, beats: 0.75, time_ms: 375, feedback: 0.5, drive: 0.5, bias: 0.9, wow: 0.3, speed: 15, spacing: 5, mix: 0.5,
   lfo_shape: 0, lfo_rate: 0.5, lfo_slow: 0, lfo_depth: 0, lfo_slew: 0,
 };
 
@@ -156,7 +156,10 @@ export class Tape {
     }
     this.c = cFor(p.bias);
     const len = this.len;
-    const base = Math.max(p.beats, 0.0625) * beat - Math.floor(FIR_LEN / 2);
+    // Sync off: Time in ms (presets from before Sync have no `sync`, and were synced).
+    const synced = p.sync ?? 1;
+    const frames = synced ? Math.max(p.beats, 0.0625) * beat : Math.min(Math.max(p.time_ms ?? 375, 10), 2000) * 0.001 * this.rate;
+    const base = frames - Math.floor(FIR_LEN / 2);
     const fb = clamp(p.feedback, 0, 1.05);
     const mix = clamp(p.mix, 0, 1);
     const wow = clamp(p.wow, 0, 1);

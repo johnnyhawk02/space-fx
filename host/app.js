@@ -238,41 +238,21 @@ function control(spec, get, set, target) {
     return true;
   };
 
-  if (spec.kind === 'values' || spec.kind === 'choice') {
-    const box = el('div', 'param-wide');
-    box.append(el('span', 'label', spec.label));
-    const sel = el('select');
-    const items = spec.kind === 'values' ? spec.values.map(([l, v]) => [l, v]) : spec.labels.map((l, i) => [l, i]);
-    for (const [l, v] of items) {
-      const o = el('option', null, l);
-      o.value = String(v);
-      sel.append(o);
-    }
-    sel.value = String(shown());
-    sel.disabled = !!found;
-    sel.onchange = () => {
-      set(Number(sel.value));
-      tip();
-    };
-    box.onmousedown = mapClick;
-    box.onmouseenter = tip;
-    box.append(sel);
-    return box;
-  }
-
   if (spec.kind === 'toggle') {
-    const box = el('div', 'param-wide');
-    box.append(el('span', 'label', spec.label));
-    const b = el('button', `toggle${shown() ? ' on' : ''}`, shown() ? 'On' : 'Off');
-    b.disabled = !!found;
-    b.onclick = () => {
-      set(get() ? 0 : 1);
-      b.classList.toggle('on', !!get());
-      b.textContent = get() ? 'On' : 'Off';
+    // A checkbox, labelled like a dial so it sits in line with them.
+    const box = el('label', 'check');
+    const c = el('input');
+    c.type = 'checkbox';
+    c.checked = !!shown();
+    c.disabled = !!found;
+    c.onchange = () => {
+      set(c.checked ? 1 : 0);
+      tip();
+      if (spec.rerender) renderSlots();
     };
     box.onmousedown = mapClick;
     box.onmouseenter = tip;
-    box.append(b);
+    box.append(el('span', 'label', spec.label), c);
     return box;
   }
 
@@ -405,6 +385,7 @@ function renderSlots() {
     s.append(meter);
     const params = el('div', 'params');
     for (const spec of DEVICES[slot.type].params) {
+      if (spec.showIf && !spec.showIf(slot.params)) continue;
       params.append(control(spec, () => slot.params[spec.id], (v) => {
         slot.params[spec.id] = v;
         send();

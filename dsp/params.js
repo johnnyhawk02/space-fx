@@ -4,6 +4,8 @@
 import { LFO_SHAPES } from './lfo.js';
 
 export const TIMES = [['1/16', 0.25], ['1/8', 0.5], ['3/16', 0.75], ['1/4', 1], ['3/8', 1.5], ['1/2', 2], ['3/4', 3], ['1 Bar', 4]];
+// Phaser Rate when synced: one sweep every so many beats.
+export const RATES = [['8 Bars', 32], ['4 Bars', 16], ['2 Bars', 8], ['1 Bar', 4], ['1/2', 2], ['1/4', 1], ['1/8', 0.5], ['1/16', 0.25]];
 export const SPEEDS = [['3.75 ips', 3.75], ['7.5 ips', 7.5], ['15 ips', 15], ['30 ips', 30]];
 
 // kind: 'lin' | 'log' (continuous), 'values' (a list of [label, value]), 'choice' (index into
@@ -12,7 +14,9 @@ export const DEVICES = {
   tape: {
     name: 'Tape',
     params: [
-      { id: 'beats', label: 'Time', kind: 'values', values: TIMES, def: 0.75 },
+      { id: 'sync', label: 'Sync', kind: 'toggle', def: 1, rerender: true },
+      { id: 'beats', label: 'Time', kind: 'values', values: TIMES, def: 0.75, showIf: (p) => p.sync },
+      { id: 'time_ms', label: 'Time', kind: 'log', min: 10, max: 2000, def: 375, unit: 'ms', digits: 0, showIf: (p) => !p.sync },
       { id: 'feedback', label: 'Feedback', kind: 'lin', min: 0, max: 1.05, def: 0.5, pct: true },
       { id: 'wow', label: 'Wow', kind: 'lin', min: 0, max: 1, def: 0.3, pct: true },
       { id: 'speed', label: 'Speed', kind: 'values', values: SPEEDS, def: 15 },
@@ -21,7 +25,7 @@ export const DEVICES = {
       { id: 'spacing', label: 'Spacing', kind: 'lin', min: 0, max: 30, def: 5, unit: 'um', digits: 0 },
       { id: 'lfo_shape', label: 'LFO Shape', kind: 'choice', labels: LFO_SHAPES, def: 0 },
       { id: 'lfo_rate', label: 'LFO Rate', kind: 'log', min: 0.01, max: 20, def: 0.5, unit: 'Hz', digits: 2 },
-      { id: 'lfo_slow', label: 'LFO x0.01', kind: 'toggle', def: 0 },
+      { id: 'lfo_slow', label: 'x0.01', kind: 'toggle', def: 0 },
       { id: 'lfo_depth', label: 'LFO Depth', kind: 'lin', min: 0, max: 50, def: 0, unit: 'ms', digits: 1 },
       { id: 'lfo_slew', label: 'LFO Slew', kind: 'lin', min: 0, max: 1, def: 0, pct: true },
       { id: 'mix', label: 'Dry/Wet', kind: 'lin', min: 0, max: 1, def: 0.5, pct: true },
@@ -30,7 +34,9 @@ export const DEVICES = {
   phaser: {
     name: 'Phaser',
     params: [
-      { id: 'speed', label: 'Rate', kind: 'log', min: 0.05, max: 10, def: 0.5, unit: 'Hz', digits: 2 },
+      { id: 'sync', label: 'Sync', kind: 'toggle', def: 0, rerender: true },
+      { id: 'speed', label: 'Rate', kind: 'log', min: 0.05, max: 10, def: 0.5, unit: 'Hz', digits: 2, showIf: (p) => !p.sync },
+      { id: 'rate_beats', label: 'Rate', kind: 'values', values: RATES, def: 8, showIf: (p) => p.sync },
       { id: 'mix', label: 'Dry/Wet', kind: 'lin', min: 0, max: 1, def: 0.5, pct: true },
     ],
   },

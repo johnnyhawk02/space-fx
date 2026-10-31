@@ -102,3 +102,10 @@ body.patching, body.patching * { cursor: crosshair !important; }
 .grid .inrow { border-bottom: 1px solid var(--line); }
 .grid .dial .label { min-height: 13px; }
 .main-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; border-top: 1px solid var(--line); padding-top: 6px; }
+
+.check { width: 58px; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; }
+.check .label { color: var(--dim); }
+.check input { appearance: none; -webkit-appearance: none; width: 14px; height: 14px; margin: 4px 0 0;
+  border: 1px solid var(--dim); background: #1a1a1a; border-radius: 2px; padding: 0; cursor: pointer; display: grid; place-content: center; }
+.check input:checked { background: var(--on); border-color: var(--on); }
+.check input:checked::after { content: ''; width: 7px; height: 4px; border: solid #111; border-width: 0 0 2px 2px; transform: translateY(-1px) rotate(-45deg); }
