@@ -28,7 +28,7 @@ input[type=number] { width: 64px; }
 .field { display: inline-flex; align-items: center; gap: 4px; color: var(--dim); }
 .title { font-weight: 600; color: var(--text); }
 #wave { display: block; width: 100%; height: 90px; background: #181818; border-bottom: 1px solid var(--line); }
-.rack { margin: 8px; background: var(--panel); border: 1px solid var(--line); }
+.rack { position: relative; margin: 8px; background: var(--panel); border: 1px solid var(--line); }
 .chip { padding: 2px 8px; border: 1px solid var(--line); background: var(--device); cursor: grab; }
 .macros { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; padding: 6px 8px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .macro { display: flex; flex-direction: column; align-items: center; }
@@ -42,8 +42,6 @@ input[type=number] { width: 64px; }
 .slot-head .x { height: 16px; padding: 0 5px; background: transparent; border: none; color: var(--dim); }
 .activator { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--dim); background: var(--off); padding: 0; cursor: pointer; }
 .activator.on { background: var(--on); border-color: var(--on); }
-.slot-io { display: flex; align-items: center; gap: 4px; padding: 4px 5px; color: var(--dim); border-bottom: 1px solid var(--line); }
-.slot-io select { flex: 1; min-width: 0; height: 18px; padding: 0 3px; }
 .meter { height: 3px; background: #222; margin: 0 5px 4px; }
 .meter i { display: block; height: 100%; width: 0; background: var(--dim); }
 .params { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 2px; padding: 6px 4px; }
@@ -65,7 +63,6 @@ body.mapping .dial:not(.macrodial) { outline: 1px solid var(--dim); cursor: copy
 .mixer { background: var(--device); border: 1px solid var(--line); }
 .mixer .chs { display: flex; gap: 2px; padding: 4px; }
 .mixer .ch { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 2px; border-right: 1px solid var(--line); }
-.mixer .ch select { width: 82px; height: 18px; padding: 0 2px; }
 .mixer .own { display: flex; padding: 0 4px 4px; }
 .mappings { padding: 6px 8px; border-top: 1px solid var(--line); }
 .mappings table { border-collapse: collapse; width: 100%; }
@@ -77,3 +74,16 @@ body.mapping .dial:not(.macrodial) { outline: 1px solid var(--dim); cursor: copy
 dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); padding: 12px; }
 dialog form { display: flex; flex-direction: column; gap: 8px; min-width: 240px; }
 dialog .row { display: flex; justify-content: flex-end; gap: 6px; }
+
+.cables { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 5; overflow: visible; }
+.cable { fill: none; stroke-width: 3.5; stroke-linecap: round; opacity: 0.8; }
+.cable.auto { stroke-dasharray: 1 6; stroke-width: 3; opacity: 0.55; }
+.cable.dragging { stroke: var(--on); stroke-dasharray: 5 4; }
+.cable-edge { fill: none; stroke: #111; stroke-width: 6; opacity: 0.45; }
+body.hide-cables .cables { display: none; }
+.jack { position: relative; z-index: 6; display: inline-block; width: 13px; height: 13px; border-radius: 50%;
+  background: #141414; border: 2px solid #8a8a8a; cursor: crosshair; flex: none; }
+.jack.out { border-color: #d0d0d0; }
+.jack.in:hover, body.patching .jack.in { border-color: var(--on); box-shadow: 0 0 0 2px #555; }
+body.patching, body.patching * { cursor: crosshair !important; }
+.ch-in { display: flex; align-items: center; gap: 4px; }
