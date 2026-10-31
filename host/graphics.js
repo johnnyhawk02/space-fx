@@ -136,8 +136,8 @@ function tape(g, w, h, p, lvl, t, tempo, st) {
 }
 
 function delay(g, w, h, p, lvl, t, tempo) {
-  // One bar per repeat, spaced by Time, falling by Feedback, over the next two seconds; a
-  // playhead goes round once per repeat.
+  // The dry hit and its one echo, Time apart, on a two-second ruler; a playhead goes round once
+  // per Time.
   const left = 10;
   const right = w - 10;
   const base = h - 14;
@@ -162,8 +162,7 @@ function delay(g, w, h, p, lvl, t, tempo) {
     const bh = (base - 12) * Math.min(amp, 1);
     g.fillStyle = k === 0 ? FAINT : INK;
     g.fillRect(Math.round(x) - 1, base - bh, 3, bh);
-    amp *= Math.min(p.feedback, 1.05);
-    if (dt <= 0) break;
+    if (k >= 1 || dt <= 0) break; // the dry hit and one echo
   }
   if (dt > 0) {
     const x = left + (((t % dt) / span) * (right - left));
