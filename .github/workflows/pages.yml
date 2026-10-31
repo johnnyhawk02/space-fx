@@ -31,7 +31,7 @@ jobs:
       - name: Collect the site
         run: |
           mkdir site
-          cp -r index.html host dsp worklet site/
+          cp -r index.html host dsp worklet audio site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

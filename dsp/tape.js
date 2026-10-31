@@ -159,7 +159,12 @@ export class Tape {
     // Sync off: Time in ms (presets from before Sync have no `sync`, and were synced).
     const synced = p.sync ?? 1;
     const frames = synced ? Math.max(p.beats, 0.0625) * beat : Math.min(Math.max(p.time_ms ?? 375, 10), 2000) * 0.001 * this.rate;
-    const base = frames - Math.floor(FIR_LEN / 2);
+    const target = frames - Math.floor(FIR_LEN / 2);
+    // The read head glides to a new Time instead of jumping, so the repeats bend in pitch
+    // like a real tape delay: longer Time pitches down on the way, shorter pitches up.
+    // About a quarter second to settle, and never faster than an octave down or a fifth up.
+    if (!(this.base >= 0)) this.base = target;
+    const glide = 1 - Math.exp(-1 / (0.25 * this.rate));
     const fb = clamp(p.feedback, 0, 1.05);
     const mix = clamp(p.mix, 0, 1);
     const wow = clamp(p.wow, 0, 1);
@@ -171,6 +176,8 @@ export class Tape {
     const echo = [0, 0];
     const io = [L, R];
     for (let f = 0; f < n; f++) {
+      this.base += clamp((target - this.base) * glide, -0.5, 0.5);
+      const base = this.base;
       const wobble = wow * this.rate * this.wobble.next(this.i % 2048 === 0, this.rand, speedK, this.rate);
       const lfo = this.lfo.next(p.lfo_shape | 0, lfoRate, p.lfo_slew, this.rate, this.rand);
       const d = clamp(base + wobble + lfo * depth, 2, len - 4);

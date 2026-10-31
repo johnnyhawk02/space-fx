@@ -117,3 +117,18 @@ test('preset names', () => {
   }
 });
 
+
+test('tape glides to a new Time instead of jumping', () => {
+  const rate = 48000;
+  const t = new Tape(rate);
+  const p = defaults('tape');
+  const L = new Float32Array(64);
+  const R = new Float32Array(64);
+  t.process(L, R, 64, p, rate / 2);
+  const start = t.base;
+  p.beats = 1.5; // twice as long
+  t.process(L, R, 64, p, rate / 2);
+  assert.ok(t.base > start && t.base - start <= 32 + 1e-9, 'moves at most half a frame per frame');
+  for (let i = 0; i < 3000; i++) t.process(L, R, 64, p, rate / 2);
+  assert.ok(Math.abs(t.base - (1.5 * rate / 2 - 16)) < 1, 'settles on the new Time');
+});

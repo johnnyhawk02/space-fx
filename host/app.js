@@ -573,6 +573,19 @@ function setState(st) {
 // ---- Wiring --------------------------------------------------------------------------------
 
 $('open').onclick = () => $('file').click();
+// Open the break that sits in the site's audio folder, so there's something to play at once.
+const DEFAULT_AUDIO = 'audio/Adrift Break.wav';
+(async () => {
+  try {
+    const res = await fetch(encodeURI(DEFAULT_AUDIO));
+    if (!res.ok || buffer) return;
+    const blob = await res.blob();
+    if (!buffer) await loadFile(new File([blob], DEFAULT_AUDIO.split('/').pop()));
+  } catch (e) {
+    console.warn('No default audio', e);
+  }
+})();
+
 $('file').onchange = () => $('file').files[0] && loadFile($('file').files[0]);
 document.body.ondragover = (e) => e.preventDefault();
 document.body.ondrop = (e) => {
