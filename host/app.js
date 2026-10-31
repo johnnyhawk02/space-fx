@@ -352,24 +352,6 @@ function control(spec, get, set, target) {
 
 // ---- Rendering the rack --------------------------------------------------------------------
 
-function sourceOptions(sel, current, { auto, self }) {
-  sel.innerHTML = '';
-  const add = (v, l) => {
-    const o = el('option', null, l);
-    o.value = v;
-    sel.append(o);
-  };
-  add('auto', auto);
-  add('in', 'Rack In');
-  state.slots.forEach((s, i) => {
-    if (s.id === self) add(`slot:${s.id}`, `Slot ${i + 1} Out (itself)`);
-    else add(`slot:${s.id}`, `Slot ${i + 1} Out${s.type ? `: ${DEVICES[s.type].name}` : ''}`);
-  });
-  for (const m of state.mixers) add(`mix:${m.id}`, `Sub Mixer ${m.id}`);
-  add('none', 'None');
-  sel.value = current || 'auto';
-}
-
 function renderMacros() {
   const box = $('macros');
   box.innerHTML = '';
@@ -457,18 +439,8 @@ function renderSlots() {
       send();
       renderAll();
     };
-    head.append(act, el('span', 'sname', `${i + 1}  ${DEVICES[slot.type].name}`), x);
+    head.append(jack('in', `slotin:${slot.id}`), act, el('span', 'sname', `${i + 1}  ${DEVICES[slot.type].name}`), x, jack('out', `slot:${slot.id}`));
     s.append(head);
-
-    const io = el('div', 'slot-io');
-    const sel = el('select');
-    sourceOptions(sel, slot.input, { auto: i === 0 ? 'Rack In (auto)' : `Slot ${i} Out (auto)`, self: slot.id });
-    sel.onchange = () => {
-      slot.input = sel.value;
-      send();
-    };
-    io.append(el('span', null, 'In'), sel);
-    s.append(io);
     const meter = el('div', 'meter');
     meter.append(el('i'));
     meter.dataset.slot = slot.id;
@@ -484,6 +456,7 @@ function renderSlots() {
     s.append(params);
     box.append(s);
   });
+  requestAnimationFrame(drawCables);
 }
 
 function dropMappings(slotId) {
@@ -507,20 +480,14 @@ function renderMixers() {
       send();
       renderAll();
     };
-    head.append(el('span', 'sname', `Sub Mixer ${m.id}`), x);
+    head.append(el('span', 'sname', `Sub Mixer ${m.id}`), x, jack('out', `mix:${m.id}`));
     panel.append(head);
     const chs = el('div', 'chs');
     m.channels.forEach((ch, ci) => {
       const c = el('div', 'ch');
-      const sel = el('select');
-      sourceOptions(sel, ch.source, { auto: 'None', self: null });
-      sel.querySelector('option[value=auto]').remove();
-      sel.value = ch.source || 'none';
-      sel.onchange = () => {
-        ch.source = sel.value;
-        send();
-      };
-      c.append(sel);
+      const top = el('div', 'ch-in');
+      top.append(jack('in', `mixin:${m.id}:${ci}`), el('span', 'dim', `In ${ci + 1}`));
+      c.append(top);
       for (const spec of CHANNEL_PARAMS) {
         c.append(control(spec, () => ch[spec.id], (v) => {
           ch[spec.id] = v;
@@ -541,8 +508,151 @@ function renderMixers() {
     box.append(panel);
   }
   $('addMixer').disabled = state.mixers.length >= MAX_MIXERS;
-  const out = $('out');
-  sourceOptions(out, state.out, { auto: 'Last Slot (auto)', self: null });
+  requestAnimationFrame(drawCables);
+}
+
+// ---- Patch cables -------------------------------------------------------------------------
+// Out jacks: 'in' (Rack In), 'slot:<id>', 'mix:<id>'. In jacks: 'slotin:<id>',
+// 'mixin:<id>:<channel>', 'rackout'. An In takes one cable; an Out can feed any number.
+
+const CABLE_GREYS = ['#e0e0e0', '#b0b0b0', '#cfcfcf', '#9a9a9a', '#f4f4f4', '#bdbdbd'];
+let dragCable = null;
+
+function jack(kind, id) {
+  const j = el('span', `jack ${kind}`);
+  j.dataset.jack = id;
+  j.title = kind === 'out' ? 'Out: drag to an In' : 'In: drag a cable here; drag out to unplug';
+  j.onmousedown = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (kind === 'out') startDrag(id, null);
+    else {
+      const from = inputOf(id);
+      if (from && !from.auto) {
+        setInput(id, 'none');
+        startDrag(from.source, null);
+      }
+    }
+  };
+  return j;
+}
+
+// What feeds an In jack: { source, auto } (auto = the default wiring, drawn dashed).
+function inputOf(id) {
+  const lastFilledBefore = (i) => {
+    for (let k = i - 1; k >= 0; k--) if (state.slots[k].type) return `slot:${state.slots[k].id}`;
+    return 'in';
+  };
+  if (id.startsWith('slotin:')) {
+    const i = state.slots.findIndex((s) => s.id === id.slice(7));
+    const v = state.slots[i]?.input;
+    if (!v || v === 'auto') return { source: lastFilledBefore(i), auto: true };
+    return v === 'none' ? null : { source: v, auto: false };
+  }
+  if (id.startsWith('mixin:')) {
+    const [, mid, ch] = id.split(':');
+    const v = state.mixers.find((m) => m.id === mid)?.channels[ch]?.source;
+    return !v || v === 'none' ? null : { source: v, auto: false };
+  }
+  if (id === 'rackout') {
+    const v = state.out;
+    if (!v || v === 'auto') return { source: lastFilledBefore(state.slots.length), auto: true };
+    return v === 'none' ? null : { source: v, auto: false };
+  }
+  return null;
+}
+
+function setInput(id, source) {
+  if (id.startsWith('slotin:')) state.slots.find((s) => s.id === id.slice(7)).input = source;
+  else if (id.startsWith('mixin:')) {
+    const [, mid, ch] = id.split(':');
+    state.mixers.find((m) => m.id === mid).channels[ch].source = source;
+  } else if (id === 'rackout') state.out = source;
+  send();
+}
+
+function startDrag(source, _) {
+  dragCable = { source, x: 0, y: 0 };
+  document.body.classList.add('patching');
+  const move = (e) => {
+    const r = $('rack').getBoundingClientRect();
+    dragCable.x = e.clientX - r.left;
+    dragCable.y = e.clientY - r.top;
+    drawCables();
+  };
+  const up = (e) => {
+    removeEventListener('mousemove', move);
+    removeEventListener('mouseup', up);
+    document.body.classList.remove('patching');
+    const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('.jack.in');
+    if (target) {
+      setInput(target.dataset.jack, dragCable.source);
+      info(`Patched ${jackName(dragCable.source)} to ${jackName(target.dataset.jack)}`);
+    }
+    dragCable = null;
+    drawCables();
+  };
+  addEventListener('mousemove', move);
+  addEventListener('mouseup', up);
+}
+
+function jackName(id) {
+  if (id === 'in') return 'Rack In';
+  if (id === 'rackout') return 'Rack Out';
+  const slotNo = (sid) => state.slots.findIndex((s) => s.id === sid) + 1;
+  if (id.startsWith('slot:')) return `Slot ${slotNo(id.slice(5))} Out`;
+  if (id.startsWith('slotin:')) return `Slot ${slotNo(id.slice(7))} In`;
+  if (id.startsWith('mix:')) return `Sub Mixer ${id.slice(4)} Out`;
+  const [, mid, ch] = id.split(':');
+  return `Sub Mixer ${mid} In ${Number(ch) + 1}`;
+}
+
+function jackPos(id) {
+  const j = document.querySelector(`.jack[data-jack="${id}"]`);
+  if (!j) return null;
+  const r = $('rack').getBoundingClientRect();
+  const b = j.getBoundingClientRect();
+  return [b.left + b.width / 2 - r.left, b.top + b.height / 2 - r.top];
+}
+
+function cablePath([x1, y1], [x2, y2]) {
+  const sag = 30 + Math.hypot(x2 - x1, y2 - y1) * 0.3;
+  return `M${x1},${y1} C${x1},${y1 + sag} ${x2},${y2 + sag} ${x2},${y2}`;
+}
+
+function drawCables() {
+  const svg = $('cables');
+  const r = $('rack');
+  svg.setAttribute('width', r.scrollWidth);
+  svg.setAttribute('height', r.scrollHeight);
+  svg.innerHTML = '';
+  const NS = 'http://www.w3.org/2000/svg';
+  const ins = [...document.querySelectorAll('.jack.in')].map((j) => j.dataset.jack);
+  ins.forEach((id, k) => {
+    const from = inputOf(id);
+    if (!from) return;
+    const a = jackPos(from.source);
+    const b = jackPos(id);
+    if (!a || !b) return;
+    const d = cablePath(a, b);
+    const under = document.createElementNS(NS, 'path');
+    under.setAttribute('d', d);
+    under.setAttribute('class', 'cable-edge');
+    const top = document.createElementNS(NS, 'path');
+    top.setAttribute('d', d);
+    top.setAttribute('class', `cable${from.auto ? ' auto' : ''}`);
+    top.style.stroke = CABLE_GREYS[k % CABLE_GREYS.length];
+    svg.append(under, top);
+  });
+  if (dragCable) {
+    const a = jackPos(dragCable.source);
+    if (a) {
+      const p = document.createElementNS(NS, 'path');
+      p.setAttribute('d', cablePath(a, [dragCable.x, dragCable.y]));
+      p.setAttribute('class', 'cable dragging');
+      svg.append(p);
+    }
+  }
 }
 
 function renderMain() {
@@ -626,6 +736,7 @@ function renderAll() {
   renderMixers();
   renderMain();
   renderMappings();
+  requestAnimationFrame(drawCables);
   $('name').value = state.name || '';
   $('tempo').value = state.tempo;
   renderPresets();
@@ -673,6 +784,8 @@ function setState(st) {
 
 // ---- Wiring --------------------------------------------------------------------------------
 
+$('rackIn').replaceWith(jack('out', 'in'));
+$('rackOut').replaceWith(jack('in', 'rackout'));
 $('open').onclick = () => $('file').click();
 $('file').onchange = () => $('file').files[0] && loadFile($('file').files[0]);
 document.body.ondragover = (e) => e.preventDefault();
@@ -707,6 +820,9 @@ $('map').onclick = () => {
   document.body.classList.toggle('mapping', mapping);
   renderAll();
 };
+$('hideCables').onclick = () => {
+  $('hideCables').classList.toggle('on', document.body.classList.toggle('hide-cables'));
+};
 $('randMacros').onclick = () => {
   for (const m of state.macros) m.value = Math.random();
   send();
@@ -718,10 +834,6 @@ $('addMixer').onclick = () => {
   state.mixers.push(newMixer(id));
   send();
   renderAll();
-};
-$('out').onchange = () => {
-  state.out = $('out').value;
-  send();
 };
 $('name').onchange = () => {
   state.name = $('name').value.trim() || presetName(new Set(Object.keys(loadPresets())));
@@ -759,6 +871,9 @@ addEventListener('keydown', (e) => {
     else play();
   }
 });
-addEventListener('resize', () => drawWave());
+addEventListener('resize', () => {
+  drawWave();
+  drawCables();
+});
 
 renderAll();
