@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Space FX</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="host/style.css">
+</head>
+<body>
+<header class="bar">
+  <button id="open">Open</button>
+  <input id="file" type="file" accept="audio/*,.wav,.aif,.aiff" hidden>
+  <span id="filename" class="dim">Drop an audio file anywhere</span>
+  <span class="gap"></span>
+  <button id="play" disabled>Play</button>
+  <button id="stop" disabled>Stop</button>
+  <button id="loop" class="toggle on">Loop</button>
+  <label class="field">Tempo <input id="tempo" type="number" min="20" max="300" step="0.01" value="120"></label>
+  <span class="gap"></span>
+  <select id="presets" title="Presets"></select>
+  <input id="name" class="name" spellcheck="false" title="Preset name">
+  <button id="save">Save</button>
+  <button id="delete">Delete</button>
+  <button id="rand" title="A random rack, with a new name">Rand</button>
+  <span class="gap"></span>
+  <button id="export" disabled>Export Audio</button>
+</header>
+
+<canvas id="wave" height="90"></canvas>
+
+<section class="rack">
+  <div class="rack-head">
+    <span class="title">Space FX</span>
+    <button id="map" class="toggle">Map</button>
+    <button id="randMacros" title="Random Macro values">Rand Macros</button>
+    <span class="gap"></span>
+    <span class="dim">Browser:</span>
+    <span class="chip" draggable="true" data-fx="tape">Tape</span>
+    <span class="chip" draggable="true" data-fx="phaser">Phaser</span>
+    <span class="chip" draggable="true" data-fx="spring">Spring</span>
+  </div>
+  <div id="macros" class="macros"></div>
+  <div id="slots" class="slots"></div>
+  <div class="mixers-head">
+    <span class="title">Sub Mixers</span>
+    <button id="addMixer">Add Sub Mixer</button>
+    <span class="gap"></span>
+    <label class="field">Rack Out <select id="out"></select></label>
+    <span id="main"></span>
+  </div>
+  <div id="mixers" class="mixers"></div>
+  <div id="mappings" class="mappings" hidden></div>
+</section>
+
+<footer id="info" class="info">Drag Tape, Phaser or Spring from the Browser into a slot. Drag a slot's title bar to reorder.</footer>
+
+<dialog id="exportDialog">
+  <form method="dialog">
+    <div class="title">Export Audio</div>
+    <label class="field">Sample Rate <select id="exRate"><option value="0">Same as file</option><option>44100</option><option>48000</option><option>96000</option></select></label>
+    <label class="field">Bit Depth <select id="exBits"><option>16</option><option selected>24</option><option>32</option></select></label>
+    <label class="field"><input id="exNorm" type="checkbox"> Normalize</label>
+    <label class="field">Tail <select id="exTail"><option value="auto" selected>Until silent (max 20 s)</option><option value="0">None</option><option value="5">5 s</option><option value="10">10 s</option></select></label>
+    <div class="row"><button value="cancel">Cancel</button><button id="exGo" value="ok">Export</button></div>
+  </form>
+</dialog>
+
+<script type="module" src="host/app.js"></script>
+</body>
+</html>
