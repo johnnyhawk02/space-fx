@@ -30,23 +30,27 @@
 
 <section class="rack" id="rack">
   <div class="rack-head">
-    <span class="title">Space FX</span>
-    <button id="map" class="toggle">Map</button>
-    <button id="randMacros" title="Random Macro values">Rand Macros</button>
+    <span class="title">SPACE FX</span>
   </div>
-  <div id="macros" class="macros"></div>
   <div class="body">
-    <div class="routing-panel">
-      <div class="title">Routing</div>
-      <div id="routing"></div>
-      <div class="main-row"><span class="dim">Main</span><span id="main"></span></div>
-    </div>
     <div id="slots" class="slots"></div>
+    <div class="slot routing-panel">
+      <div class="slot-head"><span class="sname">Routing</span></div>
+      <div id="routing"></div>
+      <div class="ghead">Main</div>
+      <div id="main"></div>
+    </div>
+    <div class="slot macro-panel">
+      <div class="slot-head"><span class="sname">Macros</span><span class="gap"></span>
+        <button id="map" class="toggle">Map</button>
+        <button id="randMacros" title="Random Macro values">Rand</button></div>
+      <div id="macros" class="macros"></div>
+    </div>
   </div>
   <div id="mappings" class="mappings" hidden></div>
 </section>
 
-<footer id="info" class="info">Routing: each dial sends one row's output into one column's input. Drag up and down; double-click resets.</footer>
+<footer id="info" class="info">Drag a dial up and down; Shift for fine; double-click resets.</footer>
 
 <dialog id="exportDialog">
   <form method="dialog">

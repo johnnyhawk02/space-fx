@@ -27,7 +27,7 @@ function reel(g, x, y, r, angle) {
 
 function tape(g, w, h, p, lvl, t, tempo, st) {
   // Reels on the left, turning at tape speed with a little wow.
-  const r = h * 0.3;
+  const r = Math.min(h * 0.3, w * 0.13);
   const cy = h * 0.4;
   const x1 = r + 8;
   const x2 = x1 + r * 2 + 14;
