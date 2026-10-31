@@ -27,11 +27,13 @@ const EFFECTS = { tape: Tape, filter: Filter, delay: Delay, phaser: Phaser, spri
 // The routing Modes: a few clearly different shapes instead of a grid of sends.
 // Feedback sends whatever reaches Rack Out back into the start, through a soft clipper.
 export const MODES = [
-  { label: 'Series', order: ['tape', 'filter', 'delay', 'spring', 'phaser'] }, // tape, filter, echoes, reverb, sweep
-  { label: 'Reverse', order: ['phaser', 'spring', 'delay', 'filter', 'tape'] }, // the reverb's tail gets echoed and filtered
-  { label: 'Parallel', parallel: true },                                         // all five side by side
-  { label: 'Echo + Verb', order: ['tape', 'delay', 'spring'] },                 // no Filter or Phaser
+  { label: 'Series', order: ['tape', 'filter', 'delay', 'phaser'] },   // tape, filter, echoes, sweep
+  { label: 'Reverse', order: ['phaser', 'delay', 'filter', 'tape'] },  // the sweep gets echoed and filtered
+  { label: 'Parallel', parallel: true },                                // the four side by side
+  { label: 'Echo + Verb', order: ['tape', 'delay'] },                  // no Filter or Phaser
 ];
+// In every Mode the Spring comes last, after the Feedback loop, just before the output.
+export const TAIL = 'spring';
 export const MAIN_SPECS = {
   mode: { id: 'mode', label: 'Mode', kind: 'values', values: MODES.map((m, i) => [m.label, i]), def: 0 },
   loop: { id: 'loop', label: 'Feedback', kind: 'lin', min: 0, max: 1, def: 0, pct: true },
@@ -59,21 +61,24 @@ export function chainRoutes(order) {
   return r;
 }
 
-// The sends a Mode makes. Feedback (0..1) goes from the end of the chain back to its start
-// (in Parallel, each module back into itself), up to -3 dB.
+// The sends a Mode makes: the Mode's modules, then the Spring, then Out. Feedback (0..1) goes
+// from the end of the modules back to their start (in Parallel, each module back into itself),
+// up to -3 dB, so the Spring sits outside the loop.
 export function modeRoutes(mode, loop = 0) {
   const m = MODES[Math.round(mode)] || MODES[0];
   const fb = loop > 0 ? 20 * Math.log10(loop * 0.7) : OFF;
   if (m.parallel) {
     const r = emptyRoutes();
     for (const t of MODULES) {
+      if (t === TAIL) continue;
       r.in[t] = 0;
-      r[t].out = -6;
+      r[t][TAIL] = -6;
       r[t][t] = fb;
     }
+    r[TAIL].out = 0;
     return r;
   }
-  const r = chainRoutes(m.order);
+  const r = chainRoutes([...m.order, TAIL]);
   r[m.order[m.order.length - 1]][m.order[0]] = fb;
   return r;
 }
