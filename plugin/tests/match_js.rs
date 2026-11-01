@@ -90,6 +90,9 @@ fn delay_matches() {
     let p = DelayParams { mix: 0.7, sync: false, time_ms: 120.0, ..Default::default() };
     let mut fx = Delay::new(SR);
     check("delay-ms", 100.0, |l, r| blocks(l, r, |a, b| fx.process(a, b, &p, BEAT)));
+    let p = DelayParams { mix: 0.8, pingpong: true, sync: false, time_ms: 90.0, ..Default::default() };
+    let mut fx = Delay::new(SR);
+    check("delay-pp", 100.0, |l, r| blocks(l, r, |a, b| fx.process(a, b, &p, BEAT)));
 }
 
 #[test]

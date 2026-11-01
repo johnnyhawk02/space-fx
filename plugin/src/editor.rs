@@ -94,11 +94,14 @@ fn cards(p: &SpaceFxParams) -> Vec<Card> {
             on: Some(d.on.as_ptr()),
             cols: 3,
             min_w: 0.0,
-            rows: vec![vec![
-                check(&d.sync, "Sync"),
-                if d.sync.value() { dial(&d.beats, "Time") } else { dial(&d.time_ms, "Time") },
-                dial(&d.mix, "Dry/Wet"),
-            ]],
+            rows: vec![
+                vec![
+                    check(&d.sync, "Sync"),
+                    if d.sync.value() { dial(&d.beats, "Time") } else { dial(&d.time_ms, "Time") },
+                    check(&d.pingpong, "Ping Pong"),
+                ],
+                vec![dial(&d.mix, "Dry/Wet")],
+            ],
         },
         Card {
             name: "Phaser",

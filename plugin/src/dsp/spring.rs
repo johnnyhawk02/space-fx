@@ -1,13 +1,16 @@
 //! Spring: a stereo spring tank after Valimaki, Parker and Abel, via Clip's fx.rs and
 //! dsp/spring.js. Two springs of slightly different length, each a feedback loop through a
 //! stretched all-pass chain (the low chirps) and one through plain all-passes (the wide-band
-//! chirps). Buffers are sized for the lowest Tone up front, so changing Tone never allocates.
+//! chirps). True stereo: each spring is driven mostly by its own side. Buffers are sized for the
+//! lowest Tone up front, so changing Tone never allocates.
 
 use super::clamp;
 use std::f64::consts::PI;
 
 const M_LOW: usize = 100;
 const M_HIGH: usize = 200;
+/// How much of its own side each spring hears; the rest is the other side.
+const OWN: f64 = 0.8;
 /// The lowest Tone the buffers are sized for.
 pub const MIN_TONE: f64 = 1500.0;
 
@@ -192,8 +195,9 @@ impl Spring {
         let delays = [(len as usize).clamp(1, size - 1), ((len * 1.13) as usize).clamp(1, size - 1)];
         let mut wet = [0.0f64; 2];
         for f in 0..n {
-            let x = 0.5 * (l[f] as f64 + r[f] as f64);
+            let ins = [l[f] as f64, r[f] as f64];
             for (c, w) in wet.iter_mut().enumerate() {
+                let x = OWN * ins[c] + (1.0 - OWN) * ins[1 - c];
                 let sp = &mut self.springs[c];
                 let back = (sp.i + size - delays[c]) % size;
                 let lo = sp.low.process(x - g * sp.fb_low[back] as f64, a_low);
