@@ -1,8 +1,36 @@
 # Space FX
 
-A multi-effects rack (Tape, Phaser, Spring) ported from the Rust DSP in
-[Clip](https://github.com/johnnyhawk02/clip), prototyped in the browser as an AudioWorklet and
-headed for VST3.
+A multi-effects rack (Tape, Filter, Delay, Phaser, Spring) ported from the Rust DSP in
+[Clip](https://github.com/johnnyhawk02/clip), prototyped in the browser as an AudioWorklet, and
+built as a VST3 and CLAP plugin in `plugin/`.
+
+## The plugin
+
+Download the latest Mac build (universal: Apple Silicon and Intel), made by
+`.github/workflows/plugin.yml` on every push to main:
+https://github.com/johnnyhawk02/space-fx/releases/download/plugin-latest/Space-FX-macOS.zip
+
+Unzip it, right-click `install-mac.command` and choose Open. It copies `Space FX.vst3` and
+`Space FX.clap` into `~/Library/Audio/Plug-Ins` and clears the "downloaded from the internet"
+flag (the plugin is signed ad hoc, not notarised, so macOS would otherwise refuse to load it).
+Then rescan plugins in the DAW.
+
+It's the browser rack as one plugin: the same five modules and Routing panel (Mode and
+Feedback, Spring always last), the same controls with the same ranges and defaults, every one
+automatable, and the same black-and-white pictures. Delay and Phaser Sync follow the host's
+tempo. The rack works in 64-frame blocks, so it reports 64 samples of latency.
+
+Built in Rust with [nih-plug](https://github.com/robbert-vdh/nih-plug) and an egui editor. The
+DSP in `plugin/src/dsp/` is a line-by-line port of `dsp/*.js`, and `plugin/tests/match_js.rs`
+renders the same signal through both: every module and every Mode match to better than 120 dB.
+
+    cd plugin
+    cargo test                                        # DSP checks (the JS comparison needs node)
+    cargo xtask bundle space_fx --release             # target/bundled/Space FX.vst3 and .clap
+    cargo xtask bundle-universal space_fx --release   # on a Mac: Apple Silicon + Intel in one
+    cargo run --release --features standalone         # a standalone window, no DAW needed
+
+Because nih-plug's VST3 support uses the GPLv3 VST3 bindings, the plugin is GPL-3.0.
 
 - Tape, Spring and Phaser, routed by a 3 x 3 grid of send dials (plus Rack In and Rack Out)
 - 8 Macros, each mappable to any number of parameters
@@ -14,7 +42,8 @@ Layout:
     dsp/      plain JS modules, no DOM: tape, filter (Polivoks), delay, phaser, spring, rack (routing), params
     worklet/  the AudioWorklet processor that runs the rack
     host/     the browser UI
-    tools/    Rust reference renderer and comparison scripts
+    tools/    Rust reference renderer and comparison scripts; render-js.mjs feeds the plugin's tests
+    plugin/   the VST3 / CLAP plugin (Rust, nih-plug)
 
 ## Run it
 
