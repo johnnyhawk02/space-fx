@@ -6,14 +6,19 @@ built as a VST3 and CLAP plugin in `plugin/`.
 
 ## The plugin
 
-Download the latest Mac build (universal: Apple Silicon and Intel), made by
-`.github/workflows/plugin.yml` on every push to main:
-https://github.com/johnnyhawk02/space-fx/releases/download/plugin-latest/Space-FX-macOS.zip
+To install the latest Mac build (universal: Apple Silicon and Intel), paste this into Terminal:
 
-Unzip it, right-click `install-mac.command` and choose Open. It copies `Space FX.vst3` and
-`Space FX.clap` into `~/Library/Audio/Plug-Ins` and clears the "downloaded from the internet"
-flag (the plugin is signed ad hoc, not notarised, so macOS would otherwise refuse to load it).
-Then rescan plugins in the DAW.
+    curl -fsSL https://raw.githubusercontent.com/johnnyhawk02/space-fx/main/plugin/install.sh | bash
+
+It downloads the build that `.github/workflows/plugin.yml` makes on every push to main, puts
+`Space FX.vst3` and `Space FX.clap` in `~/Library/Audio/Plug-Ins`, and that's it: files fetched
+by curl aren't flagged as downloaded, so macOS doesn't block the plugin, which is signed ad hoc
+rather than notarised by Apple. Run it again to update. Then rescan plugins in the DAW.
+
+Or download [Space-FX-macOS.zip](https://github.com/johnnyhawk02/space-fx/releases/download/plugin-latest/Space-FX-macOS.zip)
+by hand and run `install-mac.command` in it. macOS will say it "could not verify" the script:
+click Done, open System Settings > Privacy & Security, scroll down, click Open Anyway next to
+install-mac.command, and confirm.
 
 It's the browser rack as one plugin: the same five modules and Routing panel (Mode and
 Feedback, Spring always last), the same controls with the same ranges and defaults, every one

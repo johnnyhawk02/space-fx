@@ -75,4 +75,4 @@ jobs:
           gh release delete plugin-latest --cleanup-tag --yes || true
           gh release create plugin-latest target/bundled/Space-FX-macOS.zip --target "$GITHUB_SHA" --prerelease \
             --title "Space FX plugin (latest build)" \
-            --notes "Universal macOS VST3 and CLAP, built from $GITHUB_SHA. Unzip, then right-click install-mac.command and choose Open."
+            --notes "Universal macOS VST3 and CLAP, built from $GITHUB_SHA. To install, paste into Terminal: curl -fsSL https://raw.githubusercontent.com/johnnyhawk02/space-fx/main/plugin/install.sh | bash"
