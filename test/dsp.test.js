@@ -264,3 +264,46 @@ test('Spring comes last in every Mode, outside the Feedback loop', () => {
     }
   }
 });
+
+test('spring is stereo: a sound on the left rings mostly on the left', () => {
+  const n = SR;
+  const L = new Float32Array(n);
+  const R = new Float32Array(n);
+  L[0] = 1;
+  new Spring(SR).process(L, R, n, { ...defaults('spring'), mix: 1 });
+  const e = (a) => a.reduce((s, v) => s + v * v, 0);
+  assert.ok(e(L) > 4 * e(R), `L ${e(L)} R ${e(R)}`);
+});
+
+test('ping pong: repeats through the Routing Feedback bounce left and right', () => {
+  const st = rackState();
+  st.main.mode = 3; // Echo + Verb: Tape, Delay, then Spring
+  st.main.loop = 0.9;
+  for (const s of st.slots) {
+    if (s.id === 'delay') Object.assign(s.params, { pingpong: 1, sync: 0, time_ms: 250, mix: 1 });
+    if (s.id === 'tape') s.on = false;
+    if (s.id === 'spring') s.on = false;
+  }
+  const rack = new Rack(SR);
+  rack.setState(st);
+  // A hit mid-way through a side's turn (the sides take turns every Time, from the start).
+  const t0 = Math.round(0.125 * SR);
+  const L = new Float32Array(SR * 2);
+  L[t0] = 1;
+  const R = L.slice();
+  const oL = new Float32Array(L.length);
+  const oR = new Float32Array(L.length);
+  rack.process(L, R, oL, oR, L.length);
+  // Each repeat sits about 250 ms (and a block) after the last: one side, then the other.
+  const sides = [];
+  for (let k = 1; k <= 4; k++) {
+    const at = t0 + Math.round(k * 0.25 * SR + (k - 1) * 64);
+    const w = [at - 400, at + 400];
+    const l = peak(oL.subarray(...w));
+    const r = peak(oR.subarray(...w));
+    assert.ok(Math.max(l, r) > 1e-3, `repeat ${k} is there`);
+    assert.ok(Math.max(l, r) > 8 * Math.min(l, r), `repeat ${k} is on one side (${l} / ${r})`);
+    sides.push(l > r ? 'L' : 'R');
+  }
+  for (let k = 1; k < sides.length; k++) assert.notEqual(sides[k], sides[k - 1], sides.join(''));
+});

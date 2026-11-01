@@ -1,9 +1,13 @@
 // Spring: a stereo spring tank after Valimaki, Parker and Abel, ported from Clip's src/fx.rs.
 // Two springs of slightly different length, each a feedback loop through a stretched all-pass
 // chain (the low chirps) and one through plain all-passes (the quieter wide-band chirps).
+// True stereo: each spring is driven mostly by its own side (Clip feeds both the mono sum), so a
+// sound panned left rings mostly on the left.
 
 const M_LOW = 100;
 const M_HIGH = 200;
+// How much of its own side each spring hears; the rest is the other side.
+const OWN = 0.8;
 
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 // Rust's round (halves away from zero).
@@ -106,8 +110,9 @@ export class Spring {
     const delays = [clamp(Math.trunc(len), 1, size - 1), clamp(Math.trunc(len * 1.13), 1, size - 1)];
     const wet = [0, 0];
     for (let f = 0; f < n; f++) {
-      const x = 0.5 * (L[f] + R[f]);
+      const ins = [L[f], R[f]];
       for (let c = 0; c < 2; c++) {
+        const x = OWN * ins[c] + (1 - OWN) * ins[1 - c];
         const sp = this.springs[c];
         const d = delays[c];
         const back = (sp.i + size - d) % size;

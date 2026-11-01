@@ -148,3 +148,36 @@ fn extreme_settings_stay_finite() {
     rack.process(&mut l, &mut r, &s);
     assert!(finite(&l) && peak(&l) <= 1.0);
 }
+
+#[test]
+fn spring_is_stereo() {
+    let n = SR as usize;
+    let (mut l, mut r) = (vec![0.0f32; n], vec![0.0f32; n]);
+    l[0] = 1.0;
+    Spring::new(SR).process(&mut l, &mut r, &SpringParams { mix: 1.0, ..Default::default() });
+    let e = |a: &[f32]| a.iter().map(|v| (v * v) as f64).sum::<f64>();
+    assert!(e(&l) > 4.0 * e(&r));
+}
+
+#[test]
+fn ping_pong_repeats_bounce_left_and_right() {
+    let mut s = Settings { mode: 3, feedback: 0.9, ..Default::default() };
+    s.on[space_fx::dsp::rack::TAPE] = false;
+    s.on[space_fx::dsp::rack::SPRING] = false;
+    s.delay = DelayParams { pingpong: true, sync: false, time_ms: 250.0, mix: 1.0, ..Default::default() };
+    let t0 = (0.125 * SR).round() as usize;
+    let (mut l, mut r) = (vec![0.0f32; SR as usize * 2], vec![0.0f32; SR as usize * 2]);
+    l[t0] = 1.0;
+    r[t0] = 1.0;
+    Rack::new(SR).process(&mut l, &mut r, &s);
+    let mut sides = vec![];
+    for k in 1..=4usize {
+        // One block of FIFO latency, plus a block per trip round the Feedback loop.
+        let at = t0 + (k as f64 * 0.25 * SR).round() as usize + (k - 1) * 64 + BLOCK;
+        let (pl, pr) = (peak(&l[at - 400..at + 400]), peak(&r[at - 400..at + 400]));
+        assert!(pl.max(pr) > 1e-3, "repeat {k} is there");
+        assert!(pl.max(pr) > 8.0 * pl.min(pr), "repeat {k} is on one side ({pl} / {pr})");
+        sides.push(pl > pr);
+    }
+    assert!(sides.windows(2).all(|w| w[0] != w[1]), "{sides:?}");
+}

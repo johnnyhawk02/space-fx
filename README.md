@@ -80,6 +80,10 @@ wanders slightly differently).
 
 ## Differences from Clip
 
+- Spring is true stereo: each spring hears 80% of its own side and 20% of the other (Clip feeds
+  both the mono sum).
+- Delay has a Ping Pong switch: the echo goes hard left or right, the side flipping every Time,
+  so repeats from the Routing Feedback bounce L, R, L, R.
 - Dry/Wet starts at 50% on every device.
 - Spring rebuilds its tank when Tone changes, as Clip does, but only once Tone has been still
   for 100 ms, so a Macro sweeping it doesn't keep emptying the tank.

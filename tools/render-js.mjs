@@ -32,6 +32,7 @@ const CASES = {
   filter: () => ['filter', { ...defaults('filter'), mix: 1, resonance: 0.85, drive: 0.6, env: 0.5 }],
   'filter-bp': () => ['filter', { ...defaults('filter'), mix: 1, mode: 1, cutoff: 800 }],
   delay: () => ['delay', { ...defaults('delay'), mix: 1 }],
+  'delay-pp': () => ['delay', { ...defaults('delay'), mix: 0.8, pingpong: 1, sync: 0, time_ms: 90 }],
   'delay-ms': () => ['delay', { ...defaults('delay'), mix: 0.7, sync: 0, time_ms: 120 }],
   phaser: () => ['phaser', { ...defaults('phaser'), mix: 1, spread: 90, feedback: 0.6, speed: 2 }],
   'phaser-sync': () => ['phaser', { ...defaults('phaser'), mix: 1, sync: 1, rate_beats: 1 }],

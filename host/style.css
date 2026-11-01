@@ -252,3 +252,5 @@ body.patching, body.patching * { cursor: crosshair !important; }
 /* No group headings: the gap stays so rows still line up across cards. */
 .rack .ghead { visibility: hidden; }
 .rack .dial .value { white-space: nowrap; }
+/* Delay: Sync, Time and Ping Pong on the first row, Dry/Wet below. */
+.rack > .body .slot[data-type=delay] { --cols: 3; }

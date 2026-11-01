@@ -248,6 +248,8 @@ pub struct DelayControls {
     pub beats: EnumParam<NoteTime>,
     #[id = "delay_ms"]
     pub time_ms: FloatParam,
+    #[id = "delay_pingpong"]
+    pub pingpong: BoolParam,
     #[id = "delay_mix"]
     pub mix: FloatParam,
 }
@@ -259,6 +261,7 @@ impl Default for DelayControls {
             sync: BoolParam::new("Delay Sync", true),
             beats: EnumParam::new("Delay Time", NoteTime::N3_16),
             time_ms: plain("Delay Time ms", 375.0, log_range(10.0, 2000.0), " ms", 0),
+            pingpong: BoolParam::new("Delay Ping Pong", false),
             mix: pct("Delay Dry/Wet", 0.5),
         }
     }
@@ -419,7 +422,7 @@ impl SpaceFxParams {
                 env: f(&fl.env),
                 mix: f(&fl.mix),
             },
-            delay: DelayParams { sync: d.sync.value(), beats: d.beats.value().beats(), time_ms: f(&d.time_ms), mix: f(&d.mix) },
+            delay: DelayParams { sync: d.sync.value(), beats: d.beats.value().beats(), time_ms: f(&d.time_ms), pingpong: d.pingpong.value(), mix: f(&d.mix) },
             phaser: PhaserParams {
                 sync: ph.sync.value(),
                 speed: f(&ph.speed),
