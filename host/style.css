@@ -254,3 +254,7 @@ body.patching, body.patching * { cursor: crosshair !important; }
 .rack .dial .value { white-space: nowrap; }
 /* Delay: Sync, Time and Ping Pong on the first row, Dry/Wet below. */
 .rack > .body .slot[data-type=delay] { --cols: 3; }
+
+/* A link to the other page (Space FX <-> Space Drive), drawn like a button. */
+a.other { white-space: nowrap; color: var(--dim); text-decoration: none; border: 1px solid var(--line); border-radius: 2px; padding: 2px 7px; }
+a.other:hover { color: var(--text); border-color: var(--dim); }

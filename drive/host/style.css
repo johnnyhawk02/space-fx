@@ -1,0 +1,6 @@
+/* Space Drive: Space FX's look (../host/style.css), three cards in a row. */
+.rack > .body { grid-template-columns: repeat(3, max-content); grid-template-areas: "drive filter seq"; }
+.slot[data-type=drive] { grid-area: drive; }
+.slot[data-type=seq] { grid-area: seq; }
+.rack > .body .slot[data-type=seq] { min-width: 340px; }
+.slot[data-type=seq] .viz { cursor: crosshair; }

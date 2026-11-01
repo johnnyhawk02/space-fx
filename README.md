@@ -4,6 +4,11 @@ A multi-effects rack (Tape, Filter, Delay, Phaser, Spring) ported from the Rust 
 [Clip](https://github.com/johnnyhawk02/clip), prototyped in the browser as an AudioWorklet, and
 built as a VST3 and CLAP plugin in `plugin/`.
 
+**Space Drive**, its sibling: an antialiased distortion (Soft, Diode, Fuzz, Fold) into a filter
+moved by a step sequencer with slew, in the same style. Page at
+https://johnnyhawk02.github.io/space-fx/drive/, plugin in `plugin/drive`, design and the research
+behind it in [drive/README.md](drive/README.md). The install line below installs both plugins.
+
 ## The plugin
 
 To install the latest Mac build (universal: Apple Silicon and Intel), paste this into Terminal:
@@ -30,8 +35,9 @@ DSP in `plugin/src/dsp/` is a line-by-line port of `dsp/*.js`, and `plugin/tests
 renders the same signal through both: every module and every Mode match to better than 120 dB.
 
     cd plugin
-    cargo test                                        # DSP checks (the JS comparison needs node)
+    cargo test --workspace                            # both plugins' DSP checks (the JS comparison needs node)
     cargo xtask bundle space_fx --release             # target/bundled/Space FX.vst3 and .clap
+    cargo xtask bundle space_drive --release          # target/bundled/Space Drive.vst3 and .clap
     cargo xtask bundle-universal space_fx --release   # on a Mac: Apple Silicon + Intel in one
     cargo run --release --features standalone         # a standalone window, no DAW needed
 
