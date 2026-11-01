@@ -69,6 +69,12 @@ export function makeup(type, gain) {
 
 export const DRIVE_DEFAULTS = { type: 0, amount: 0.5, bias: 0, tone: 0.5, output: 0, mix: 1 };
 
+// Changing Type crossfades from the old curve to the new over FADE seconds (a further change
+// waits for the fade in progress to finish, so it never jumps mid-fade), and every sample
+// works the ADAA difference out with the curve and Bias of that sample (both ends of the line),
+// so moving Bias or switching Type never makes the difference quotient jump.
+const FADE = 0.03;
+
 export class Shaper {
   constructor(rate) {
     this.rate = rate;
@@ -78,26 +84,28 @@ export class Shaper {
       up: new Float64Array(this.half), // base-rate input, newest first
       down: new Float64Array(TAPS), // doubled-rate shaped signal, newest first
       xp: 0,
-      Gp: 0,
       dry: new Float64Array(LATENCY),
       dc: [0, 0],
       lp: 0,
     }));
     this.di = 0;
     this.sm = null;
+    this.type = -1;
+    this.from = 0;
+    this.fade = 1;
     this.smooth = 1 - Math.exp(-1 / (0.02 * rate));
+    this.fadeStep = 1 / (FADE * rate);
     this.dcR = Math.exp((-2 * Math.PI * 10) / rate);
     this.toneA = 1 - Math.exp((-2 * Math.PI * 800) / rate);
   }
 
   process(L, R, n, p) {
     const type = clamp(Math.round(p.type ?? 0), 0, 3);
-    const { f, F } = CURVES[type];
-    const gain = driveGain(p.amount ?? 0.5);
+    if (this.type < 0) this.type = type;
     const want = {
-      gain,
+      gain: driveGain(p.amount ?? 0.5),
       b: biasOffset(p.bias ?? 0),
-      out: makeup(type, gain) * 10 ** (clamp(p.output ?? 0, -24, 12) / 20),
+      out: 10 ** (clamp(p.output ?? 0, -24, 12) / 20),
       tone: (clamp(p.tone ?? 0.5, 0, 1) - 0.5) * 24,
       mix: clamp(p.mix ?? 1, 0, 1),
     };
@@ -106,9 +114,27 @@ export class Shaper {
     const k = this.smooth;
     const h = this.h;
     const io = [L, R];
+    // One curve's antialiased output for the step from xp to u.
+    const adaa = (c, xp, u, b, fb) => {
+      const d = u - xp;
+      return Math.abs(d) > 1e-6 ? (c.F(u + b) - u * fb - (c.F(xp + b) - xp * fb)) / d : c.f(0.5 * (u + xp) + b) - fb;
+    };
     for (let i = 0; i < n; i++) {
       for (const key of ['gain', 'b', 'out', 'tone', 'mix']) sm[key] += (want[key] - sm[key]) * k;
-      const fb = f(sm.b);
+      // A new Type starts its crossfade once the last one has finished.
+      if (this.fade >= 1 && type !== this.type) {
+        this.from = this.type;
+        this.type = type;
+        this.fade = 0;
+      }
+      this.fade = Math.min(this.fade + this.fadeStep, 1);
+      const a = this.fade;
+      const cur = CURVES[this.type];
+      const old = CURVES[this.from];
+      const fbNew = cur.f(sm.b);
+      const fbOld = old.f(sm.b);
+      const mkNew = makeup(this.type, sm.gain);
+      const mkOld = makeup(this.from, sm.gain);
       const gh = 10 ** (sm.tone / 40);
       const gl = 1 / gh;
       for (let c = 0; c < 2; c++) {
@@ -121,12 +147,9 @@ export class Shaper {
           let u = 0;
           for (let j = ph; j < TAPS; j += 2) u += h[j] * s.up[(j - ph) >> 1];
           u *= 2 * sm.gain;
-          // The shaper, antialiased.
-          const G = F(u + sm.b) - u * fb;
-          const d = u - s.xp;
-          const y = Math.abs(d) > 1e-6 ? (G - s.Gp) / d : f(0.5 * (u + s.xp) + sm.b) - fb;
+          let y = adaa(cur, s.xp, u, sm.b, fbNew) * mkNew;
+          if (a < 1) y = y * a + adaa(old, s.xp, u, sm.b, fbOld) * mkOld * (1 - a);
           s.xp = u;
-          s.Gp = G;
           s.down.copyWithin(1, 0, TAPS - 1);
           s.down[0] = y;
         }
@@ -146,10 +169,10 @@ export class Shaper {
       this.di = (this.di + 1) % LATENCY;
     }
     for (const s of this.sides) {
-      if (!Number.isFinite(s.Gp) || !Number.isFinite(s.lp) || !Number.isFinite(s.dc[1])) {
+      if (!Number.isFinite(s.xp) || !Number.isFinite(s.lp) || !Number.isFinite(s.dc[1])) {
         s.up.fill(0);
         s.down.fill(0);
-        s.xp = s.Gp = s.lp = 0;
+        s.xp = s.lp = 0;
         s.dc = [0, 0];
       }
     }

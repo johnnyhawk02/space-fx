@@ -91,6 +91,9 @@ impl Default for DriveParams {
     }
 }
 
+/// Seconds a change of Type crossfades over.
+const FADE: f64 = 0.03;
+
 #[derive(Clone, Copy)]
 struct Smooth {
     gain: f64,
@@ -105,7 +108,6 @@ struct Side {
     up: [f64; HALF],
     down: [f64; TAPS],
     xp: f64,
-    gp: f64,
     dry: [f64; LATENCY],
     dc: [f64; 2],
     lp: f64,
@@ -113,7 +115,19 @@ struct Side {
 
 impl Side {
     fn new() -> Self {
-        Self { up: [0.0; HALF], down: [0.0; TAPS], xp: 0.0, gp: 0.0, dry: [0.0; LATENCY], dc: [0.0; 2], lp: 0.0 }
+        Self { up: [0.0; HALF], down: [0.0; TAPS], xp: 0.0, dry: [0.0; LATENCY], dc: [0.0; 2], lp: 0.0 }
+    }
+}
+
+/// One curve's antialiased output for the step from `xp` to `u`, worked out with this sample's
+/// Bias at both ends, so moving Bias never makes the quotient jump.
+#[inline]
+fn adaa(t: usize, xp: f64, u: f64, b: f64, fb: f64) -> f64 {
+    let d = u - xp;
+    if d.abs() > 1e-6 {
+        (anti(t, u + b) - u * fb - (anti(t, xp + b) - xp * fb)) / d
+    } else {
+        curve(t, 0.5 * (u + xp) + b) - fb
     }
 }
 
@@ -122,7 +136,12 @@ pub struct Shaper {
     sides: [Side; 2],
     di: usize,
     sm: Option<Smooth>,
+    /// The Type playing, the one it's fading from, and how far through the fade (1: done).
+    kind: Option<usize>,
+    from: usize,
+    fade: f64,
     smooth: f64,
+    fade_step: f64,
     dc_r: f64,
     tone_a: f64,
 }
@@ -134,19 +153,23 @@ impl Shaper {
             sides: [Side::new(), Side::new()],
             di: 0,
             sm: None,
+            kind: None,
+            from: 0,
+            fade: 1.0,
             smooth: 1.0 - (-1.0 / (0.02 * rate)).exp(),
+            fade_step: 1.0 / (FADE * rate),
             dc_r: ((-2.0 * PI * 10.0) / rate).exp(),
             tone_a: 1.0 - ((-2.0 * PI * 800.0) / rate).exp(),
         }
     }
 
     pub fn process(&mut self, l: &mut [f32], r: &mut [f32], p: &DriveParams) {
-        let t = p.kind.min(3);
-        let gain = drive_gain(p.amount);
+        let want_kind = p.kind.min(3);
+        let mut kind = *self.kind.get_or_insert(want_kind);
         let want = Smooth {
-            gain,
+            gain: drive_gain(p.amount),
             b: bias_offset(p.bias),
-            out: makeup(t, gain) * 10f64.powf(clamp(p.output, -24.0, 12.0) / 20.0),
+            out: 10f64.powf(clamp(p.output, -24.0, 12.0) / 20.0),
             tone: (clamp(p.tone, 0.0, 1.0) - 0.5) * 24.0,
             mix: clamp(p.mix, 0.0, 1.0),
         };
@@ -159,7 +182,19 @@ impl Shaper {
             sm.out += (want.out - sm.out) * k;
             sm.tone += (want.tone - sm.tone) * k;
             sm.mix += (want.mix - sm.mix) * k;
-            let fb = curve(t, sm.b);
+            // A new Type starts its crossfade once the last one has finished.
+            if self.fade >= 1.0 && want_kind != kind {
+                self.from = kind;
+                kind = want_kind;
+                self.fade = 0.0;
+            }
+            self.fade = (self.fade + self.fade_step).min(1.0);
+            let a = self.fade;
+            let old = self.from;
+            let fb_new = curve(kind, sm.b);
+            let fb_old = curve(old, sm.b);
+            let mk_new = makeup(kind, sm.gain);
+            let mk_old = makeup(old, sm.gain);
             let gh = 10f64.powf(sm.tone / 40.0);
             let gl = 1.0 / gh;
             for c in 0..2 {
@@ -176,11 +211,11 @@ impl Shaper {
                         j += 2;
                     }
                     u *= 2.0 * sm.gain;
-                    let g = anti(t, u + sm.b) - u * fb;
-                    let d = u - s.xp;
-                    let y = if d.abs() > 1e-6 { (g - s.gp) / d } else { curve(t, 0.5 * (u + s.xp) + sm.b) - fb };
+                    let mut y = adaa(kind, s.xp, u, sm.b, fb_new) * mk_new;
+                    if a < 1.0 {
+                        y = y * a + adaa(old, s.xp, u, sm.b, fb_old) * mk_old * (1.0 - a);
+                    }
                     s.xp = u;
-                    s.gp = g;
                     s.down.copy_within(0..TAPS - 1, 1);
                     s.down[0] = y;
                 }
@@ -199,13 +234,13 @@ impl Shaper {
             }
             self.di = (self.di + 1) % LATENCY;
         }
+        self.kind = Some(kind);
         self.sm = Some(sm);
         for s in self.sides.iter_mut() {
-            if !s.gp.is_finite() || !s.lp.is_finite() || !s.dc[1].is_finite() {
+            if !s.xp.is_finite() || !s.lp.is_finite() || !s.dc[1].is_finite() {
                 s.up = [0.0; HALF];
                 s.down = [0.0; TAPS];
                 s.xp = 0.0;
-                s.gp = 0.0;
                 s.lp = 0.0;
                 s.dc = [0.0; 2];
             }
