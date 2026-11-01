@@ -31,7 +31,7 @@ jobs:
       - name: Collect the site
         run: |
           mkdir site
-          cp -r index.html host dsp worklet audio site/
+          cp -r index.html host dsp worklet audio drive site/
           # Stamp every script and stylesheet path with this commit, so a browser never mixes
           # a fresh page with stale cached files (that left the panel blank).
           V=${GITHUB_SHA::8}

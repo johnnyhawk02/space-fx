@@ -2346,6 +2346,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "space_drive"
+version = "0.1.0"
+dependencies = [
+ "nih_plug",
+ "nih_plug_egui",
+ "serde_json",
+]
+
+[[package]]
 name = "space_fx"
 version = "0.1.0"
 dependencies = [

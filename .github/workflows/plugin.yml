@@ -1,4 +1,5 @@
-# Builds and tests the VST3 / CLAP plugin in plugin/.
+# Builds and tests the VST3 / CLAP plugins in plugin/: Space FX (the root crate) and Space Drive
+# (plugin/drive). Both ship in the one zip, and install.sh installs both.
 # - test: the Rust DSP's checks, including matching the browser prototype's JS (needs Node).
 # - macos: a universal (Apple Silicon + Intel) build, ad-hoc signed, as a downloadable artifact.
 #   On main it also replaces the "plugin-latest" pre-release, so there's always one stable link:
@@ -7,10 +8,10 @@ name: Plugin
 
 on:
   pull_request:
-    paths: [plugin/**, dsp/**, tools/render-js.mjs, .github/workflows/plugin.yml]
+    paths: [plugin/**, dsp/**, drive/dsp/**, tools/render-js.mjs, tools/render-drive.mjs, .github/workflows/plugin.yml]
   push:
     branches: [main]
-    paths: [plugin/**, dsp/**, tools/render-js.mjs, .github/workflows/plugin.yml]
+    paths: [plugin/**, dsp/**, drive/dsp/**, tools/render-js.mjs, tools/render-drive.mjs, .github/workflows/plugin.yml]
   workflow_dispatch:
 
 concurrency:
@@ -38,8 +39,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: plugin
-      - run: cargo test --release
-      - run: cargo xtask bundle space_fx --release
+      - run: cargo test --release --workspace
+      - run: cargo xtask bundle -p space_fx -p space_drive --release
 
   macos:
     runs-on: macos-latest
@@ -53,15 +54,18 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: plugin
-      - name: Build a universal VST3 and CLAP
-        run: cargo xtask bundle-universal space_fx --release
+      - name: Build universal VST3s and CLAPs
+        run: cargo xtask bundle-universal -p space_fx -p space_drive --release
       - name: Sign (ad hoc) and zip
         run: |
           cd target/bundled
-          codesign --force --deep --sign - "Space FX.vst3" "Space FX.clap"
-          lipo -info "Space FX.vst3/Contents/MacOS/Space FX"
           mkdir -p "dist/Space FX"
-          cp -R "Space FX.vst3" "Space FX.clap" ../../install-mac.command "dist/Space FX/"
+          for name in "Space FX" "Space Drive"; do
+            codesign --force --deep --sign - "$name.vst3" "$name.clap"
+            lipo -info "$name.vst3/Contents/MacOS/$name"
+            cp -R "$name.vst3" "$name.clap" "dist/Space FX/"
+          done
+          cp ../../install-mac.command "dist/Space FX/"
           ditto -c -k --keepParent "dist/Space FX" Space-FX-macOS.zip
       - uses: actions/upload-artifact@v4
         with:
@@ -74,5 +78,5 @@ jobs:
         run: |
           gh release delete plugin-latest --cleanup-tag --yes || true
           gh release create plugin-latest target/bundled/Space-FX-macOS.zip --target "$GITHUB_SHA" --prerelease \
-            --title "Space FX plugin (latest build)" \
-            --notes "Universal macOS VST3 and CLAP, built from $GITHUB_SHA. To install, paste into Terminal: curl -fsSL https://raw.githubusercontent.com/johnnyhawk02/space-fx/main/plugin/install.sh | bash"
+            --title "Space FX and Space Drive plugins (latest build)" \
+            --notes "Space FX and Space Drive, universal macOS VST3 and CLAP, built from $GITHUB_SHA. To install, paste into Terminal: curl -fsSL https://raw.githubusercontent.com/johnnyhawk02/space-fx/main/plugin/install.sh | bash"
