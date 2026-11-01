@@ -1,0 +1,40 @@
+[workspace]
+resolver = "2"
+members = ["xtask"]
+
+[package]
+name = "space_fx"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+description = "Space FX: Tape, Filter, Delay, Phaser and Spring in one rack, as a VST3 and CLAP plugin"
+repository = "https://github.com/johnnyhawk02/space-fx"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", rev = "de421011f41a6d10fc8c7a6084e4f4dee0143683", features = ["assert_process_allocs"] }
+nih_plug_egui = { git = "https://github.com/robbert-vdh/nih-plug.git", rev = "de421011f41a6d10fc8c7a6084e4f4dee0143683" }
+
+[profile.release]
+lto = "thin"
+strip = "symbols"
+
+[profile.profiling]
+inherits = "release"
+debug = true
+strip = "none"
+
+[dev-dependencies]
+serde_json = "1"
+
+[features]
+# A standalone app (`cargo run --release --features standalone`), for trying the plugin
+# without a DAW.
+standalone = ["nih_plug/standalone"]
+
+[[bin]]
+name = "space_fx_standalone"
+path = "src/main.rs"
+required-features = ["standalone"]
