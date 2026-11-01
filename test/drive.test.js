@@ -98,3 +98,21 @@ test('stays finite pushed hard, in either order', () => {
     }
   }
 });
+
+test('switching Type and moving Bias while it plays makes no spikes', () => {
+  const fx = new SpaceDrive(SR);
+  const st = driveState();
+  st.on.filter = false;
+  fx.setState(st);
+  const L = new Float32Array(SR).map((_, i) => 0.3 * Math.sin((2 * Math.PI * 110 * i) / SR));
+  const R = L.slice();
+  // A new Type every 3 ms (far faster than a hand on the dial) and Bias jumping about.
+  for (let o = 0; o < L.length; o += 128) {
+    st.drive.type = (o / 128) % 4;
+    st.drive.bias = ((o / 128) % 7) / 6;
+    fx.process(L.subarray(o, o + 128), R.subarray(o, o + 128), 128);
+  }
+  let jump = 0;
+  for (let i = 1000; i < L.length; i++) jump = Math.max(jump, Math.abs(L[i] - L[i - 1]));
+  assert.ok(jump < 0.05, `largest step between samples ${jump}`);
+});

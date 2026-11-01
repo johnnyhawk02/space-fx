@@ -38,3 +38,7 @@ standalone = ["nih_plug/standalone"]
 name = "space_fx_standalone"
 path = "src/main.rs"
 required-features = ["standalone"]
+
+# Our copy of egui-baseview, which passes key presses on to the DAW (see vendor/egui-baseview).
+[patch."https://github.com/BillyDM/egui-baseview.git"]
+egui-baseview = { path = "vendor/egui-baseview" }

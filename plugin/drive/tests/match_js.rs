@@ -52,6 +52,10 @@ fn check(case: &str, change: impl FnOnce(&mut Settings)) {
     let beat = SR / 2.0;
     for (o, (a, b)) in l.chunks_mut(100).zip(r.chunks_mut(100)).enumerate() {
         let song = if case == "seq-song" { Some(3.5 + (o * 100) as f64 / beat) } else { None };
+        if case == "switch" {
+            s.drive.kind = (o * 100 / 2000) % 4;
+            s.drive.bias = ((o * 100) % 3000) as f64 / 3000.0;
+        }
         fx.process(a, b, &s, song);
     }
     let (dl, dr) = (match_db(&l, &want.l), match_db(&r, &want.r));
@@ -87,6 +91,11 @@ fn every_type_matches() {
         s.drive.kind = 3;
         s.drive.amount = 0.8;
     });
+}
+
+#[test]
+fn moving_type_and_bias_match() {
+    check("switch", |s| s.drive.amount = 0.7);
 }
 
 #[test]

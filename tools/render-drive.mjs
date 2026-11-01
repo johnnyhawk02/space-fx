@@ -33,7 +33,11 @@ const CASES = {
   'seq-free': (s) => Object.assign(s.seq, { sync: 0, hz: 13, steps: 5, slew: 0.8, swing: 0.6 }),
   'seq-song': (s) => Object.assign(s.seq, { rate: 1 / 6, slew: 0, swing: 0.3 }),
   off: (s) => Object.assign(s.on, { drive: false, seq: false }),
+  // Type and Bias moving while it plays (set block by block below).
+  switch: (s) => Object.assign(s.drive, { amount: 0.7 }),
 };
+// 'switch': a new Type every 2000 frames, Bias sweeping up every 3000.
+const moving = (s, o) => Object.assign(s.drive, { type: Math.floor(o / 2000) % 4, bias: (o % 3000) / 3000 });
 
 const which = process.argv[2];
 const st = driveState();
@@ -50,6 +54,7 @@ const B = 100;
 const beat = SR / 2;
 for (let o = 0; o < N; o += B) {
   const n = Math.min(B, N - o);
+  if (which === 'switch') moving(st, o);
   fx.process(L.subarray(o, o + n), R.subarray(o, o + n), n, which === 'seq-song' ? 3.5 + o / beat : null);
 }
 process.stdout.write(JSON.stringify({ inL: Array.from(inL), inR: Array.from(inR), L: Array.from(L), R: Array.from(R) }));

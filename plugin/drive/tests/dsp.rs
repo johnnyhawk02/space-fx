@@ -95,3 +95,18 @@ fn stays_finite_when_pushed() {
         assert!(l.iter().chain(&r).all(|v| v.is_finite() && v.abs() < 50.0));
     }
 }
+
+#[test]
+fn switching_type_and_moving_bias_makes_no_spikes() {
+    let mut fx = Engine::new(SR);
+    let mut s = Settings { filter_on: false, ..Default::default() };
+    let mut l: Vec<f32> = (0..SR as usize).map(|i| (0.3 * (2.0 * PI * 110.0 * i as f64 / SR).sin()) as f32).collect();
+    let mut r = l.clone();
+    for (o, (a, b)) in l.chunks_mut(128).zip(r.chunks_mut(128)).enumerate() {
+        s.drive.kind = o % 4;
+        s.drive.bias = (o % 7) as f64 / 6.0;
+        fx.process(a, b, &s, None);
+    }
+    let jump = l.windows(2).skip(1000).map(|w| (w[1] - w[0]).abs()).fold(0.0, f32::max);
+    assert!(jump < 0.05, "largest step between samples {jump}");
+}
